@@ -216,7 +216,7 @@ tidy(corr_res[[1]])
 
 These results can be "stacked" and added to a `ggplot()` as shown in figure 3.3:
 
-```{r "Stacking" results}
+```{r Stacking results}
 
 corr_res %>% 
   # convert to a tidy format; `map_dfr()` stacks the data frames:
@@ -265,3 +265,31 @@ model_by_species %>%
 
 ```
 
+The tidy verse (chapter 2) is designed as a set of modular capital are packages, each with a fairly narrow scope. The tidy models framework follows a similar design. For example the**our sample**package focuses on data splitting and resampling. Otherwise sampling methods are critical to other activities of modeling (E. G., measuring performance), they reside in a single package, and performance metrics are contained in a different camera separate package,**yardstick**. There are many benefits to adopting this philosophy of modular packages, from less bloated model deployment to smoother package maintenance.
+
+The downside to this philosophy is that there are a lot of packages in the tidy models framework. To compensate for this, the tidy models*package*(which you can think of is a meta-package like the tidy verse package) loads a corset of tidymodels and tidyverse packages. Loading the package shows which packages are attached:
+
+```{r Showing which packages are loaded with tidymodels}
+
+library(tidymodels)
+
+```
+
+For convenience, **tidymodels** contains a function that captures most of the common namking conflicts that we might encounter:
+
+```{r Capturing most of the common naming conflicts that we might encounter}
+
+tidymodels_prefer(quiet = FALSE)
+
+```
+
+## 3.6 Chapter Summary
+
+This chapter reviewed core R language conventions for creating and using models that are an important foundation for the rest of this book. The formula operator is an expressive and important aspect of fitting models in our in often service multiple purposes in non–tidy models functions. Traditional R approaches to modeling have some limitations, especially when it comes to fluently handling and and visualizing model output. The**tidy models** metapackage applies tidyverse design philosophy to modeling packages.
+
+REFERENCES
+
+Chambers, J, and T Hastie, eds. 1992. Statistical Models in s. Boca Raton, FL: CRC Press, Inc.
+Mangiafico, S. 2015. “An R Companion for the Handbook of Biological Statistics.” https://rcompanion.org/handbook/.
+McDonald, J. 2009. Handbook of Biological Statistics. Sparky House Publishing.
+Wickham, H, M Averick, J Bryan, W Chang, L McGowan, R François, G Grolemund, et al. 2019. “Welcome to the Tidyverse.” Journal of Open Source Software 4 (43).
