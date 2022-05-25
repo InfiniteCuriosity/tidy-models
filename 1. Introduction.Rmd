@@ -1,0 +1,94 @@
+---
+title: "1. Software for Modeling"
+author: "Russ Conte"
+date: '2022-05-25'
+output: html_document
+---
+
+Start by loading the required packages in two lines of code:
+
+```{r Load all required packages in two lines of code}
+
+Packages <- c("tidyverse", "caret")
+lapply(Packages, library, character = TRUE)
+
+```
+
+Start with code for multi-core processing
+
+```{r multi-core processing}
+
+library(doParallel)
+cl <- makePSOCKcluster(10)
+registerDoParallel(cl)
+
+```
+
+## 1.2 Types of Models
+
+### Descripting Moels
+
+### Inferential Models
+
+### Predictive Models
+
+#### The most important factors in predictive models:
+
+* A *mechanistic model* could be derived using first principles to producer a model equation that depends on assumptions.
+
+* An *empirically driven model* tends to fall into the category of machine learning. A good example is *K*-nearest neighbor (KNN) model
+
+## 1.3 Connections Between Types of Models
+
+*Note that we have defined the type of model by how it is used, rather than by its mathematical qualities*
+
+As an example, let's look at simple linear regression:
+
+* A descriptive smoother, similar to LOESS, called *restricted smoothing splines* (Durrelman and Simon, 1989) can be used to describe trends in data using ordinary linear regression with specialized terms.
+
+* An *analysis of variance* (ANOVA) model is a popular method for producint the p-values used for inference. ANOVA models are a special case of linear regression.
+
+* If a simple linear regression model produces accurate predictions, it can be used as a predictive model.
+
+Note that *statistical significance may not be sufficient proof that a model is approprite*
+
+## 1.4 Some Terminology
+
+*Unsupervised models* are those that learn patterns, cluster, or other characteristics of the data, but lack an outcome. Principal Components Analysis, Clustering, and Autoencoders are examples of unsupervised models; they are used to understand relationships between variables or sets of variables without an explicit relationship between predictors and an outcome.
+
+*Supervised models* are those that have an outcome variable. Linear regression, neural networks, and numerous other methodologies fall into this category.
+
+Within supervised models, there are two main sub-categories:
+
+* *Regression* predicts a numeric outcome
+* *Classification* predicts an outcome that is an ordered or unordered set of qualitative values.
+
+## 1.5 How does Modeling Fit Into the Data Analysis Process?
+
+First, there is the chronically underestimated process of *cleaning the data*. 
+
+The second phase is *understanding the data*, often referred to as exploratory data analysis (EDA). EDA brings to light how the different variables are related to one another, their distributions, typical ranges, and other attributes.
+
+Finally, before starting a data analysis process, there should be clear expectations of the model's goal and how performance and success will be judged. At least one *performance metric* should be identified with realistic goals of what can be achieved.
+
+The process of investigating the dat may not be simple. Wickham and Grolemund (2016) contains an excellent illustration of the general data analysis process, reproduced here:
+
+![Modeling example](/Users/russellconte/Modeling_process_from_Wickham.png)
+
+Figure 1.2: The data science process (from R for Data Science)
+
+This iterative process is especially true for modeling. Figure 1.3 emulates the typical path to determining an appropriate model. The general phases are:
+
+* *Exploratory data analysis (EDA):* Initially there is a back and forth between numerical analysis and data visualization (represented in Figure 1.2) where different discoveries lead to more questions and data analysis side-quests to gain more understanding.
+
+* *Feature engineering:* The understanding gained from EDA results in the creation of specific model terms that make it easier to accurately model the observed data. This can include complex methodologies (e.e. PCA) or simpler features (using the ratio of two predictors). Chapter 8 focuses entirely on this important step.
+
+* *Model tuning and selection (large circles with alternating segments):* A variety of models are generated and their performance is compared. Some models require parameter tuning in which some structural parameters must be specified or optimized. The alternating segments within the circles signify the repeated data splitting used during resampling (see Chapter 10)
+
+* *Model evaluation:* During this phase of model development, we assess the model's performance metrics, examine residual plots, and conduct other EDA-like analyses to understand how well the models work. In some cases, formal between-model comparisons (Chapter 11) help you understand whether any difference in models are within the experimental noise.
+
+After an initial sequence of these tasks,More understanding is gained regarding which models are superior as well as which data sell populations are not being effectively estimated.This leads to additional EDA and feature engineering, another round of modeling, and so on. Once the data analysis goals are achieved, typically the last steps are to finalize, document, and communicate the model. For predictive models, it is common at the end to validate model and an additional set of data reserved for this specific purpose.
+
+## 1.6 Chapter Summary
+
+This chapter focused on how models describe relationships in data, in different types of models such as descriptive models come in French models, and predictive models. The predictive capacity of a model can be used to evaluate it, even when its main goal is not production. Modeling itself sits within a broader data analysis process, and exploratory data analysis is a key part of building high-quality models.
