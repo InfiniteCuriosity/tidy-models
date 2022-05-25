@@ -9,7 +9,7 @@ Start by loading the required packages in two lines of code:
 
 ```{r Load all required packages in two lines of code}
 
-Packages <- c("tidyverse", "caret")
+Packages <- c("tidyverse", "caret", "broom")
 lapply(Packages, library, character = TRUE)
 
 ```
@@ -171,4 +171,62 @@ While this analysis has obviously not been an exhaustive demonstration of ours m
 *There are numerous helper functions(e.g. `anova()`, `summary()`, and `predict()`) that you can use to conduct specific calculations after the fitted model is created.
 
 Finally, it's previously mentioned, this framework was first published in 1992. Most of these ideas and methods were developed in that. But ever made remarkably relevant to this day. It highlights that the S language eight, by extension R, has been designed for data analysis since it's inception.
+
+## 3.2 What does the R formula do?
+
+The R model formula is used by many modeling packages. It usually serves multiple purposes.
+
+* The formula defines the columns that the model uses.
+* The standard R machinery uses the formula to encoe the columns into an appropirate format.
+* The foles of the columns are defined by the formula.
+
+Our focus, when seeing this, is that there are two projectors in the model shown contain their main effects and their two-weight interactions. However, this formula also implies that, since ` ` is a factor, it should also create indicator variable columns for this predictor. It should also multiply those columns by the ` ` column to create the interactions. This transformation represents our second bullet point on encoding; the formula also define how each column is encoded and can create additional columns that are not in the original data.
+
+## 3.3 Why tidinss is important for modeling
+
+The tiny models package have a set of design goals. Most of the tidy models design goals fall under the existing rubric of The tidy models design goals fall under the existing rubric of "design for humans "from the tidy verse, but with specific applications from modeling code. There are a few additional tidy models design goals the complement those of the tidy verse. Some examples:
+
+*R has excellent capabilities for object oriented programming, and we use this in Lou of creating new function names (such as the hypothetical new ` `).
+**Sensible to faults*covered important. Also, functions should have no default for arguments when it is more appropriate for the user to make a choice (E. GPR, the file name argument for back t
+*Similarly, argument values was the fault can be derived from the data should be. For example, 4 ` ` the ` ` argument could check the type of data in the outcome and, if not ` ` was given a default could be determined internally.
+*Functions to take the*data structures*that users have as opposed to the data structure that developers want. For example a model functions only interface should not be constrained to matrices. Frequently users will have nonnumeric protectors, such as factors.
+
+Many of these ideas are described in the tidymodels guideline for model implementation. In subsequent chapters, we will illustrate examples of existing issues, along with their solutions.
+
+The `broom::tidy()` function, which we use through this book, is another tool for standardizing the structure of R objects. It can return many types of R objects in a more usable format. For example, suppose that predictors are being screened based on their correlation to the outcome columns. Using `purrr::map()`, the results from `cor.test()` can be returned in a list for each predictor:
+
+```{r Screening predictors based on their correlation to the outcome column}
+
+corr_res <- map(mtcars %>% select(-mpg), cor.test, y = mtcars$mpg)
+
+# The first of ten results in the vector:
+
+corr_res[[1]]
+```
+
+Interpretation: There is a 95 percent chance that the null hypothesis - that the correlation is equal to zero - is not supported by the data, and we have enough data to reject the null hypothesis. Based on the data, the most likely correlation is -0.852162.
+
+If we want to use the results in a plot, the standard format of hypothesis test results are not very useful. The `tidy()` method can return this as a tibble with standardized names:
+
+```{r tidyverse return the correlation with standardized names}
+
+tidy(corr_res[[1]])
+
+```
+
+These results can be "stacked" and added to a `ggplot()` as shown in figure 3.3:
+
+```{r "Stacking" results}
+
+corr_res %>% 
+  # convert to a tidy format; `map_dfr()` stacks the data frames:
+  
+  map_dfr(tidy, .id = "predictor") %>% 
+  ggplot(aes(x = fct_reorder(predictor, estimate))) +
+  geom_point(aes(y = estimate)) +
+  geom_errorbar(aes(ymin = conf.low, ymax = conf.high, width = 0.1)) +
+  labs(x = NULL, y = "Correlation with mpg") +
+  ggtitle("Figure 3.3:Correlations and 95% confidence intervals between predictors and the outcome in the `mtcars` data set")
+
+```
 
