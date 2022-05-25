@@ -1,0 +1,186 @@
+---
+title: "2. A Tidyverse Primer"
+author: "Russ Conte"
+date: '2022-05-25'
+output: html_document
+---
+
+Start by loading the required packages in two lines of code:
+
+```{r Load all required packages in two lines of code}
+
+Packages <- c("tidyverse", "caret")
+lapply(Packages, library, character = TRUE)
+
+```
+
+Start with code for multi-core processing
+
+```{r multi-core processing}
+
+library(doParallel)
+cl <- makePSOCKcluster(10)
+registerDoParallel(cl)
+
+```
+
+What is the tidy verse, and where does the tidy models framework fitting? The tidy verse is a collection of our packages for data analysis that are developed with common ideas and norms. From Wickham at all. (2019:)
+
+| "At a high-level, the tidy versus a language for solving data science challenges with our code. Its primary goal is to facilitate a conversation between a human and a computer about data. Let's abstractly, the Talie versus a collection of our packages that Sherry high-level the same philosophy and a low-level grammar and data structure's, so that burn in one package makes it easier to learn the next."
+
+## 2.1 Tidyverse Principles
+
+### 2.1.1 Design for Humans
+
+The variable names used here are "unquoted"; many traditional R functions require character strings to specify variables, but tidyverse functions take unquoted names or *selector functions*. The selectors allow one or more readable rules that are applied to call him names. For example, `ends_with("t")` would select the `drat` and `wt` columns of the `mtcars` data frame.
+
+```{r}
+
+mtcars %>% 
+  select(ends_with("t"))
+
+```
+
+### 2.1.2 Reuse existing data structures
+
+Whenever possible, functions should avoid returning a novel data structure. If the results are conducive to an existing data structure, it should be used. This reduces the cognitive load when using software; no additional syntax or methods are required.
+
+As an example, the hour sample package can be used to create*re-samples*of a data set, such as cross-validation or the bootstrap (described in chapter 10). The resampling functions return a table with a column called `splits` of objects that defined the resample data sets. Three bootstrap samples of a data set might look like:
+
+```{r re-sample data sets}
+
+boot_samp <- rsample::bootstraps(mtcars,times = 3)
+boot_samp
+class(boot_samp)
+
+```
+
+With this approach, vector-based functions can be used with these columns, such as `vapply()` or `purr::map()`. This `boot_samp` object has multiple classes but inherits methods for data frames (`"data.frame"`) and tibbles (`'tbl_df"`). Additionally, new columns can be added to the results without affecting the class of the data. This is much easier and more versitile for users to work with than a completely new object type that does not make its data structure obvious.
+
+## 2.1.3 Design for the pipe and functional programming
+
+The **magrittr** pipe operator ('%>%') is a tool for chaining together a sequence of R functions. To demonstrate, consider the following commands that sort a data frame and then retain the first ten rows:
+
+```{r Example sorting a data frame in base R}
+
+small_mtcars <- arrange(mtcars, gear)
+small_mtcars <- slice(small_mtcars, 1:10)
+
+# or more compactly:
+
+small_mtcars <- slice(arrange(mtcars, gear), 1:10)
+
+```
+
+The pipe operator substitutes the value of the left-hand side of the operator as the first argument to the right-hand side so we can implement the same result as before:
+
+```{r as as before, but using the pipe}
+
+small_mtcars <- 
+  mtcars %>% 
+  arrange(gear) %>% 
+  slice(1:10)
+
+small_mtcars
+
+```
+
+The pipe version of the sequence is more readable; this weight ability increases as more operations are added to the sequence. This approach to programming works in this example because all of the functions we used to return the same data structure (a data frame) that is then used as the first document to the next function. This is by design. When possible, create functions that can be incorporated into a pipeline of operations.
+
+If you have used **ggplot2**, this is not unlike the layering of plot components into a `ggplot` object wit th `+` operator. To make a scatter plot with a regression line, the intial `ggplot()` call is augmented with two additional operations:
+
+```{r Demonstration of similarity of ggplot2 and the previous code example}
+
+ggplot(mtcars, aes(x = wt, y = mpg)) +
+  geom_point() +
+  geom_smooth(method = lm)
+
+```
+
+While similar to the**dplyr**pipeline, note that the first argument to this pipeline is a data set (back MT cars back tick) and that each function call returns a `ggplot` object. Not all pipelines need to keep the return values left princess plat objects) the same as the initial value (a frame). Using the pipe operator with **dplyr** operations has acclimated many R users to expect to return a data frame when pipelines are used; as shown with **ggplot2**, this does not need to be the case. Pipelines are incredibly useful in modeling workflows but modeling pipelines can return, instead of a data frame, objects such as model components.
+
+R has excellent tools for creating, changing, and operating on functions, making it a great language for functional programming. This approach can replace iterative loops in many situations, such as when a function returns a value without other side effects.
+
+Let's look at an example. Suppose you re interested in the logarithm of the ration of the fuel efficiency to the car weight.
+
+```{r Return the log of the ratio of fuel efficiency to car weight}
+
+log_ratios <- map2_dbl(mtcars$mpg, mtcars$wt, ~log(.x/.y))
+log_ratios
+
+```
+
+### *For functional programming in tidy modeling, functions should be defined so that functions like `map()` can be used for iterative computations.*
+
+## 2.2 Examples of tidyverse syntax
+
+Standard data frames enable *partial matching* of arguments so that code using only a portion of the column names still works. Tibbles prevent this from happening since it can lead to accidental errors:
+
+```{r}
+
+df <- data.frame(`variable 1` = 1:2, two = 3:4, check.names = FALSE)
+df$tw
+
+tbbl <- tibble(`variable 1` = 1:2, two = 3:4)
+tbbl$tw
+
+```
+
+Tibble also prevent one of the most common R errors: Dropping dimensions. If a standard data frame subsets the columns down to a single column, the object is converted to a vector. Tibbles never do this:
+
+```{r Data frames drop dimensions, tibbles never do this}
+
+df[,"two"]
+
+tbbl[,"two"]
+
+```
+
+To demonstrate some syntax, let's use tidyverse functions to read in data that could be used in modeling. The dat set comes form the city of Chicago's data portal and contains daily ridership data for the city's elevated train stations. The data set has columns for:
+
+* The station identifier (numeric)
+* The station name (character)
+* The date (character in `mm/dd/yyyy` format)
+* The day of the week (character)
+* The number of riders (numeric)
+
+1. The tidyverse package **readr** will read the data from the source website and convert them into a tibble. To do this, the `read_csv()` function can determine the type of data by reading an initial number of rows. Alternatively, if the column names and types are already know, a column specification can be created in R and passed to `read_csv()`.
+
+2. Filter the data to eliminate a few columns that are not needed (such as station ID) and change the column `stationname` to `station`. The function `select()` is used for this. When filtering, use either the column names, or a **dplyr** selector function. When selecting names, a new variable name can be declared using the argument format `new_name  old_name`
+
+3. Convert the date field to the R date format using the`mdy()` function from the **lubridate** package. We also convert the ridership numbers to thousands. Both of these computations are executed using the `dplyr::mutate()` function/
+
+4. Use the maximum number of rides for each station and day combination. This mitigates the issue of a small number of days that have more than one record of ridership numbers at certain stations. We group the ridershp data by station and day, and then summarize within each of the 1999 unique combinations with the maximum statistic.
+
+The tidyverse code for these steps is:
+
+```{r Analysis of CTA data}
+library(lubridate)
+
+url <- "https://data.cityofchicago.org/api/views/5neh-572f/rows.csv?accessType=DOWNLOAD&bom=true&format=true"
+
+all_stations <- 
+  # step 1: Read in the data.
+  read_csv(url) %>% 
+  # step 2: Filter columns and rename stationname
+  select(station = stationname, date, rides) %>% 
+    # Step 3: Convert the character date field to a date encoding.
+    # Also, put the data in units of 1,000 rides
+    mutate(date = mdy(date), rides = rides/1000) %>% 
+    # Step 4: Summarize the multiple records using the maximum
+    group_by(date, station) %>% 
+    summarise(rides = max(rides), .groups = "drop")
+
+
+```
+
+The spyline of operations illustrates why the tidy verses so popular. Is serious of data manipulations as used that have simple and easy to understand functions for each transformations; the series is bond in a streamlined, read away. The focuses and now the user interacts with the software. The approach enables more people to learn are and achieve their are analysis goals, and adopting the same principles for modeling and are has the same benefits.
+
+## 2.3 Chapter Summary
+
+This chapter introduced the tiny verse, with a focus on applications for modeling how to reverse the same principles inform the teddy bears framework. Think of the tidy models framework Is applying tidyverse principles to the domain of building models. We describe differences in conventions between the tiny verses and bases are, and introduced to important components of the teddy bear system, Tibbles and the Pied Piper operator `%>%`. Data cleaning and processing can feel mundane at times, but these tasks are important for modeling in the real world, we illustrated how to use tibbles, the pipe, and tidyverse functions in an example data import and processing exercise.
+
+REFERENCES
+
+Wickham, H, M Averick, J Bryan, W Chang, L McGowan, R François, G Grolemund, et al. 2019. “Welcome to the Tidyverse.” Journal of Open Source Software 4 (43).
+Wickham, H, and G Grolemund. 2016. R for Data Science: Import, Tidy, Transform, Visualize, and Model Data. O’Reilly Media, Inc.
