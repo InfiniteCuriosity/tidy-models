@@ -1,0 +1,25 @@
+---
+title: "4. The Ames Housing Data"
+author: "Russ Conte"
+date: '2022-05-25'
+output: html_document
+---
+
+Start by loading the required packages in two lines of code:
+
+```{r Load all required packages in two lines of code}
+
+Packages <- c("tidyverse", "caret", "broom")
+lapply(Packages, library, character = TRUE)
+
+```
+
+Start with code for multi-core processing
+
+```{r multi-core processing}
+
+library(doParallel)
+cl <- makePSOCKcluster(10)
+registerDoParallel(cl)
+
+```
