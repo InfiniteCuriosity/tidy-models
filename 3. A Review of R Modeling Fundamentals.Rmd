@@ -1,0 +1,84 @@
+---
+title: "3. A Review of R Modeling Fundamentals"
+author: "Russ Conte"
+date: '2022-05-25'
+output: html_document
+---
+
+Start by loading the required packages in two lines of code:
+
+```{r Load all required packages in two lines of code}
+
+Packages <- c("tidyverse", "caret")
+lapply(Packages, library, character = TRUE)
+
+```
+
+Start with code for multi-core processing
+
+```{r multi-core processing}
+
+library(doParallel)
+cl <- makePSOCKcluster(10)
+registerDoParallel(cl)
+
+```
+
+Before describing how to use tidymodels for applying tidy data principles to building models with our, let's review how models are created, trained, and used in the core our language left parenthesis often called "base R"). This Chapter is a brief illustration of core language conventions that are important to be aware of even if you never use base R for models at all. This chapter is not exhaustive, but it provides readers (especially those new to our) the most basic commonly used motifs.
+
+## 3.1 An Example
+
+To demonstrate some fundamentals from modeling and base are, let's use experimental data from McDonald (2009), by way of Mangiafico (2015), on the relationship between the ambient temperature and the rate of cricket trips per minute. Data were collected on to species: *oh! Honest and oh Nevius*O. exclamationis* and *O. niveus.* The data are contained in a data frame called `crickets` with a total of 31 data points. The data is shown in figure 3.1 using the following **ggplot2** code:
+
+```{r ggplot of cricket data code}
+
+data(crickets, package = "modeldata")
+names(crickets)
+
+```
+
+Plot the temperature on the x-axis and the chirp rate on the y-axis. The plot elements will be colored differently for each of the two species:
+
+```{r Plot of the chirps of two cricket species using ggplot2}
+
+ggplot(crickets,
+       aes(x = temp, y = rate, color = species, pch = species, lty = species)) +
+  geom_point(size = 2) +
+  geom_smooth(method = lm, se = FALSE, alpha = 0.5) +
+  scale_color_brewer(palette = "Paired") +
+  labs(x = "Temperature (C)", y = "Chirp Rate (per minute)") +
+  ggtitle("Figure 3.1, Relationship between chirp rate and temperature for two different species of crickets")
+
+```
+
+The model formula `rate ~ temp + species` Creates a model with different y-intercepts for each species: the slope of the regression lines could be different for each species as well. To accommodate the structure, and interaction term can be added to the model. This can be specified in a few different ways, the most basic uses the colon:
+
+```{r Looking at interaction terms in base R}
+
+rate ~ temp + species + temp:species
+
+```
+
+A shortcut can be used to expand all interactions containing interactions with two variables:
+
+```{r All interactions}
+
+rate ~ (temp + species) ^ 2
+
+```
+
+Another shortcut to expand factors to include all possible interactions (equivalent for this example):
+
+```{r Another shortcut}
+
+rate ~ temp * species
+
+```
+
+In addition to the convenience of automatically creating indicator variables, the formula offers a few other niceties:
+
+* *In-line* Functions can be used in the formula for example to use the natural log of the temperature, we can create the formula `rate ~ log(temp`. Since the formula is symbolic by default, math can also be applied to the predictors using the identity function, `I()`. To use Fahrenheit units, the formula could be `rate ~ I( (temp * (9/5) + 32`to convert from Celsius.
+
+* R has many functions that are useful inside of formulas. For example, `poly(x, 3` creates linear, quadratic, and cubic terms for `x` to the model as main effects. The *splines* package also has several functions to create nonlinear spline terms in the formula.
+
+* For data sets where there are many predictors, the period shortcut is available.The period represents the main effects for all of the columns that are not on the left-hand side of the tilde. Using `~(.)^3` would create main effects as well as all two-and three-variable interactions to the model.
