@@ -82,3 +82,93 @@ In addition to the convenience of automatically creating indicator variables, th
 * R has many functions that are useful inside of formulas. For example, `poly(x, 3` creates linear, quadratic, and cubic terms for `x` to the model as main effects. The *splines* package also has several functions to create nonlinear spline terms in the formula.
 
 * For data sets where there are many predictors, the period shortcut is available.The period represents the main effects for all of the columns that are not on the left-hand side of the tilde. Using `~(.)^3` would create main effects as well as all two-and three-variable interactions to the model.
+
+Returning to our chirping crickets, let's use a two-way interaction model. In this book, we use the suffix `_fit` for R objects that are fitted models.
+
+```{r Our first look at interaction fits}
+
+interaction_fit <- lm(rate ~ (temp + species) ^2, data = crickets)
+
+```
+
+Let's look at a short summary of the model:
+
+```{r Summary of the model}
+
+interaction_fit
+
+```
+
+The output is a little hard to read. For the species indicator variables, R measures the variable name (parenthesis parenthesis (`species`)together with a factor level (`O.Niveus`) with no delimiter.
+
+Before going into any inferential results for this model, the fit should be assessed using diagnostic plots. We can use the `plot()` method for `lm` objects this method produces a set of four plots for the object each showing different aspects of the fit, as shown in figure 3.2.
+
+```{r Plot our results. Start with two plots next to each other}
+
+par(mfrow = c(1,2))
+
+plot(interaction_fit, which = 1) # residual vs filled
+
+plot(interaction_fit, which = 2) # Normal Q-Q plot
+
+```
+
+Our next order of business with the crickets is to assess if the inclusion of the interaction term is necessary. The most appropriate approach for this model is to recompute the model without the interaction term and use the `anova()` method.
+
+```{r Recalculate the model without the interaction terms}
+
+# Fit a reduced model:
+
+main_effect_fit <- lm(rate ~ temp + species, data = crickets)
+
+```
+
+Now compare the two using ANOVA:
+
+```{r Compare with and without interaction using ANOVA}
+
+anova(main_effect_fit, interaction_fit)
+
+```
+
+The statistical test generates a p-value of 0.25. This implies that there is a lack of sufficient evidence against the hull hypothesis that the interaction term is not needed by the model. For this reason, we will conduct further analysis on the model without the interaction.
+
+Residual plots should be re-assessed to make sure that our theoretical assumptions are valid enough to trust the p-values produced by the model.
+
+```{r Check residuals of the model}
+
+plot(main_effect_fit, which = 1)
+
+```
+
+We can use the command `summary()`to inspect the coefficients, standard errors, and p-values of each model term:
+
+```{r Summary of main_effect_fit}
+
+summary(main_effect_fit)
+
+```
+
+The chirp rate for each species increases by 3.6 chirps as the temperature increases by a single degree. This term shows strong statistical significance as evidenced by the p-value. The species term has a value of -10.07. This indicates that, across all temperature values, *O. niveus* rate that is about 10 fewer chips per minute then *O. exclamationis*. Similar to the temperature term, the species affect is associated with a very small p-value.
+
+The only issue in this analysis is the intercept value. It indicates at 0° C, there are negative chirps per minute for both species. While this doesn't make sense, the data only go as far as 17.2° C. Interpreting the model at 0° C would be an extrapolation. This would be a bad idea. That being said, the model is a good fit within the applicable range of the temperature values: the conclusions should be limited to the observed temperature range.
+
+If we needed to estimate the chirp rate at a temperature that was not observed in the experiment, we could use the `predict` method. It takes the model object and a data frame of new values for prediction For example, the model estimates the chirp rate for a period four temperatures between 15° C and 20° C can be computed via:
+
+```{r Predicting chirp rate between 15º C and 20º C}
+
+new_values <- data.frame(species = "O. exclamationis", temp = 15:20)
+predict(main_effect_fit, new_values)
+
+```
+
+While this analysis has obviously not been an exhaustive demonstration of ours modeling capabilities, it does highlight some major features important for the rest of the book
+
+*the language has an expressive syntax for specifying model terms for both simple and quite complex models.
+
+*The R formula method has many conveniences for modeling that are also applied to new data when predictions are generated.
+
+*There are numerous helper functions(e.g. `anova()`, `summary()`, and `predict()`) that you can use to conduct specific calculations after the fitted model is created.
+
+Finally, it's previously mentioned, this framework was first published in 1992. Most of these ideas and methods were developed in that. But ever made remarkably relevant to this day. It highlights that the S language eight, by extension R, has been designed for data analysis since it's inception.
+
