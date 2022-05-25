@@ -230,3 +230,38 @@ corr_res %>%
 
 ```
 
+## Combining Base R Models and the Tidyverse
+
+R modeling functions from the core language or other R packages can be used in conjunction with the tidyverse, especially with the **dplyr, purr**, and **tidyr** packages. For example, if we wanted to fit separate models for each cricket species, we can first break out the cricket data by this column (species) using `dplor::group_nest()`
+
+```{r Break out each group by species}
+
+split_by_species <- 
+  crickets %>% 
+  group_nest(species)
+split_by_species
+
+```
+
+The `data` cp;i,m contains the `rate` and `temp` columns from `crickets` in a *list column*. From this, the `purr::map()` function can create individual models for each species:
+
+```{r Create individual models for each species}
+
+model_by_species <- 
+  split_by_species %>% 
+  mutate(model = map(data, ~ lm(rate ~ temp, data = .x)))
+model_by_species
+
+```
+
+To collect the coefficients for each of these models, we use `broom::tidy()` to convert them to a consisten data frame format so that they can be unnested:
+
+```{r Convert to a consistent format and unnest the data}
+
+model_by_species %>% 
+  mutate(coef = map(model, tidy)) %>% 
+  select(species, coef) %>% 
+  unnest(cols = c(coef))
+
+```
+
