@@ -36,7 +36,7 @@ registerDoParallel(cl)
 library(tidymodels)
 tidymodels_prefer()
 data(ames)
-ames <- mutate(ames, Sale_rpcie = log10(Sale_Price))
+ames <- mutate(ames, Sale_Price = log10(Sale_Price))
 
 set.seed(502)
 ames_split <- initial_split(ames, prop = 0.8, strata = Sale_Price)
@@ -44,6 +44,20 @@ ames_train <- training(ames_split)
 ames_test <- testing(ames_split)
 
 lm_model <- linear_reg() %>% set_engine("lm")
+
+lm_model <- 
+  linear_reg() %>% 
+  set_engine("lm")
+
+lm_workflow <- 
+  workflow() %>% 
+  add_model(lm_model)
+
+lm_workflow <- 
+  lm_workflow %>% 
+  add_formula(Sale_Price ~ Longitude + Latitude)
+
+lm_fit <- fit(lm_workflow, ames_train)
 
 ```
 
@@ -59,7 +73,7 @@ Other examples of pre-processing to better features of modeling include:
 
 *Once and predictors have missing values, they can be imputed using a sub – model.
 
-*Models that use variance – type measures may benefit from coarsing the distribution of some predictors to be metetric by estimating a transformation.
+*Models that use variance – type measures may benefit from coercing the distribution of some predictors to be symmetric by estimating a transformation.
 
 Feature engineering and data processing can also involve reformatting that may be required by the model. Some models use geometric distance metrics and, consequently, numeric protectors should be centered and scaled so that they are all in the same units. Otherwise, the distance values will be biased by the scale of each column.
 
@@ -71,7 +85,7 @@ This chapter uses the Ames housing data and the R objects created in the book so
 
 ## 8.1 A Simple `recipe()` For the Ames Housing Data
 
-In this section, we will focus on a small subet of the predictors available in the Ames housing data:
+In this section, we will focus on a small subset of the predictors available in the Ames housing data:
 
 • The neighborhood (qualitative, with 29 neighborhoods in the training set)
 
@@ -89,7 +103,7 @@ lm(Sale_Price ~ Neighborhood + log10(Gr_Liv_Area) + Year_Built + Bldg_Type, data
 
 ```
 
-A recipe is also an object that defines a series of steps for data processing. Unlike the formula method inside a modeling function, the recipe defines the steps via `step_*()` functions without immediately executing them; it is only a specification of what should be done. Here is a recipe equivalent to the previous formual that builds on the code summary in section 5.5:
+A recipe is also an object that defines a series of steps for data processing. Unlike the formula method inside a modeling function, the recipe defines the steps via `step_*()` functions without immediately executing them; it is only a specification of what should be done. Here is a recipe equivalent to the previous formula that builds on the code summary in section 5.5:
 
 ```{r Code example using recipe equivalent to the previous formula}
 
@@ -122,3 +136,55 @@ What is the advantage to using a recipe, over a formula or raw predictors? There
 * All data processing can be captured in a single R object instead of scripts that are repeated or even spread across different files.
 
 ## 8.2 Using recipes
+
+As we discussed in Chapter 7, preprocessing choices and feature engineering should typically be considered part of a modeling workflow, not a separate task. The **workflows** package contains high level functions to handle different types of preprocessors. Our previous workflow (`lm_workflow`) You stay simple set of **dplyr** selectors. To improve on that approach with more complex featuring engineering, let's use the `simple_ames` recipe to pre-process data for modeling.
+
+We can only have one pre-processing method at a time, so we need to remove the existing pre-processor before adding the recipe.
+
+```{r Attach simple_ames to the workflow}
+
+lm_workflow <- 
+  lm_workflow %>% 
+  remove_variables() %>% 
+  add_recipe(simple_ames)
+lm_workflow
+
+```
+
+
+LKet's estimate both the recipe and model using a simple call to `fit()`:
+
+```{r Estimate both the recipe and model using a simple call to fit()}
+
+lm_fit <- fit(lm_workflow, ames_train)
+
+```
+
+The `predict()` method applies the same preprocessing that was used on the training set to the new data before passing them along to the model's `predict()` method:
+
+```{r Using the predict() method}
+
+predict(object = lm_fit, new_data = ames_test %>% slice(1:3))
+
+```
+
+If we need the bare model object or recipe, there rae `extract_*` functions that can retreive them:
+
+```{r Get the recipe after it has been estimated}
+
+lm_fit %>% 
+  extract_recipe(estimated = TRUE)
+
+```
+
+This returns the parsnip object:
+
+```{r Returns the parsnip object}
+
+lm_fit %>% 
+  extract_fit_parsnip() %>% 
+  tidy() %>% 
+  slice(1:5)
+
+```
+
