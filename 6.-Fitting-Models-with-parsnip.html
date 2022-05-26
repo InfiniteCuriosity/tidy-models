@@ -387,7 +387,7 @@ lapply(Packages, library, character = TRUE)</code></pre>
 ## ✖ dplyr::filter()  masks stats::filter()
 ## ✖ dplyr::lag()     masks stats::lag()
 ## ✖ recipes::step()  masks stats::step()
-## • Use tidymodels_prefer() to resolve common conflicts.</code></pre>
+## • Use suppressPackageStartupMessages() to eliminate package startup messages</code></pre>
 <pre><code>## Loading required package: lattice</code></pre>
 <pre><code>## 
 ## Attaching package: &#39;caret&#39;</code></pre>
@@ -459,11 +459,11 @@ intercepts:</p>
 <p>A variety of methods can be used to estimate the model
 parameters:</p>
 <ul>
-<li><p><em>Ordinalry linear regression</em> uses the traditional method
+<li><p><em>Ordinary linear regression</em> uses the traditional method
 of least squares to solve for the model parameters.</p></li>
-<li><p><em>Regulariized linear regression</em> adds a penalty to the
+<li><p><em>Regularized linear regression</em> adds a penalty to the
 least squares method to encourage simplicity by removing predictors
-and/or shrkingking their coefficients towards zero. This can be executed
+and/or shrinking their coefficients towards zero. This can be executed
 using Bayesian or non-Bayesian techniques.</p></li>
 </ul>
 <p>In R, the <strong>stats</strong> package can be used for the first
@@ -474,7 +474,7 @@ case. The syntax for linear regression using the function
 can be fit using the <strong>rstanarm</strong> package:</p>
 <pre class="r"><code>#model &lt;- stan_glm(formula, data, family = &quot;gaussian&quot;, ...)</code></pre>
 <p>A popular non-Bayesian approach to regularized regression is the
-<strong>glmnet</strong> model (Friedman, Hstie, and Tibrhirani 2010),
+<strong>glmnet</strong> model (Friedman, Hastie, and Tibshirani 2010),
 Its syntax is:</p>
 <pre class="r"><code>#model &lt;- glmnet(x = matrix, y = vector, family = &quot;gaussian&quot;)</code></pre>
 <p>In this case, the predictor data must already be formatted into a
@@ -536,6 +536,7 @@ missing_arg, family = “gaussian)</p>
 the Ames housing data as a function of only longitude and latitude:</p>
 <pre class="r"><code>set.seed(502)
 data(ames)
+ames &lt;- ames %&gt;% mutate(Sale_Price = log10(Sale_Price))
 ames_split &lt;- initial_split(ames, prop = 0.8, strata = Sale_Price)
 ames_train &lt;- training(ames_split)
 ames_test &lt;- testing(ames_split)
@@ -563,7 +564,7 @@ lm_form_fit</code></pre>
 ## 
 ## Coefficients:
 ## (Intercept)    Longitude     Latitude  
-##  -128056769      -807916      1250927</code></pre>
+##    -302.974       -2.075        2.710</code></pre>
 <pre class="r"><code>lm_xy_fit</code></pre>
 <pre><code>## parsnip model object
 ## 
@@ -573,7 +574,7 @@ lm_form_fit</code></pre>
 ## 
 ## Coefficients:
 ## (Intercept)    Longitude     Latitude  
-##  -128056769      -807916      1250927</code></pre>
+##    -302.974       -2.075        2.710</code></pre>
 <p>Not only does <strong>parsnip</strong> enable a consistent model
 interface for different packages, it also provides consistency in the
 model arguments. It is common for different functions that fit the same
@@ -599,7 +600,7 @@ function.</b>
 <td align="left"># sampled predictors</td>
 <td align="left">mtry</td>
 <td align="left">mtry</td>
-<td align="left">feature_subset_stragety</td>
+<td align="left">feature_subset_strategy</td>
 </tr>
 <tr class="odd">
 <td align="left"># trees</td>
@@ -697,27 +698,180 @@ returned using the <code>extract_fit_engine()</code> function:</p>
 ## 
 ## Coefficients:
 ## (Intercept)    Longitude     Latitude  
-##  -128056769      -807916      1250927</code></pre>
+##    -302.974       -2.075        2.710</code></pre>
 <p>Normal methods can be applied to this object, such as printing and
 plotting:</p>
 <pre class="r"><code>lm_form_fit %&gt;% extract_fit_engine() %&gt;% vcov()</code></pre>
-<pre><code>##               (Intercept)    Longitude      Latitude
-## (Intercept)  4.305363e+13 327019204203 -295724926606
-## Longitude    3.270192e+11   3436263877    -124601638
-## Latitude    -2.957249e+11   -124601638    6757729689</code></pre>
+<pre><code>##             (Intercept)     Longitude      Latitude
+## (Intercept)  207.311311  1.5746587743 -1.4239709610
+## Longitude      1.574659  0.0165462548 -0.0005999802
+## Latitude      -1.423971 -0.0005999802  0.0325397353</code></pre>
 <p>The <strong>broom</strong> package can convert many types of model
 objects to a tidy structure. For example, using the <code>tidy()</code>
 method on the linear model produces:</p>
 <pre class="r"><code>tidy(lm_form_fit)</code></pre>
 <pre><code>## # A tibble: 3 × 5
-##   term           estimate std.error statistic  p.value
-##   &lt;chr&gt;             &lt;dbl&gt;     &lt;dbl&gt;     &lt;dbl&gt;    &lt;dbl&gt;
-## 1 (Intercept) -128056769.  6561527.     -19.5 1.04e-78
-## 2 Longitude      -807916.    58620.     -13.8 1.31e-41
-## 3 Latitude       1250927.    82205.      15.2 6.19e-50</code></pre>
+##   term        estimate std.error statistic  p.value
+##   &lt;chr&gt;          &lt;dbl&gt;     &lt;dbl&gt;     &lt;dbl&gt;    &lt;dbl&gt;
+## 1 (Intercept)  -303.      14.4       -21.0 3.64e-90
+## 2 Longitude      -2.07     0.129     -16.1 1.40e-55
+## 3 Latitude        2.71     0.180      15.0 9.29e-49</code></pre>
 <p>One important principle in the tidymodels ecosystem is that a
 function should return values that are <em>predictable, consistent,</em>
 and <em>unsurprising</em>.</p>
+</div>
+<div id="make-predictions" class="section level2">
+<h2>6.3 Make Predictions</h2>
+<p>Another area where<strong>Parsnip</strong>diverges from conventional
+are modeling functions is the format a values return from
+<code>predict()</code>. For predictions, parsnip always conforms to the
+following rules:</p>
+<ol style="list-style-type: decimal">
+<li><p>The results are always a tibble.</p></li>
+<li><p>The column names of the tibble are always predictable.</p></li>
+<li><p>There are always as many rows in the table is there are in the
+input data set.</p></li>
+</ol>
+<p>For example when numeric data are predicted:</p>
+<pre class="r"><code>ames_test_small &lt;- ames_test %&gt;% slice(1:5)
+predict(lm_form_fit, new_data = ames_test_small)</code></pre>
+<pre><code>## # A tibble: 5 × 1
+##   .pred
+##   &lt;dbl&gt;
+## 1  5.22
+## 2  5.21
+## 3  5.28
+## 4  5.27
+## 5  5.28</code></pre>
+<p>Note that the row order of the predictions are always the same as the
+original data.</p>
+<p>These three rules make it (much) easier to merge predictions with the
+original data, including a 95% confidence interval of the log of the
+sale price:</p>
+<pre class="r"><code>ames_test_small %&gt;% 
+  select(Sale_Price) %&gt;% 
+  bind_cols(predict(lm_form_fit, ames_test_small)) %&gt;% 
+  bind_cols(predict(lm_form_fit, ames_test_small, type = &quot;pred_int&quot;))</code></pre>
+<pre><code>## # A tibble: 5 × 4
+##   Sale_Price .pred .pred_lower .pred_upper
+##        &lt;dbl&gt; &lt;dbl&gt;       &lt;dbl&gt;       &lt;dbl&gt;
+## 1       5.02  5.22        4.91        5.54
+## 2       5.39  5.21        4.90        5.53
+## 3       5.28  5.28        4.97        5.60
+## 4       5.28  5.27        4.96        5.59
+## 5       5.28  5.28        4.97        5.60</code></pre>
+<p>For the second tidymodels prediction rule, the predictable column
+names for different types of predictions are shown in Table 6.4:</p>
+<center>
+Table 6.4: The tidymodels mapping of prediction types and column names
+</center>
+<table>
+<tbody>
+<tr class="odd">
+<td align="left"><strong>type value</strong></td>
+<td align="left"><strong>column name(s)</strong></td>
+</tr>
+<tr class="even">
+<td align="left">numeric</td>
+<td align="left">.pred</td>
+</tr>
+<tr class="odd">
+<td align="left">class</td>
+<td align="left">.pred_class</td>
+</tr>
+<tr class="even">
+<td align="left">prob</td>
+<td align="left">.pred_{class levels</td>
+</tr>
+<tr class="odd">
+<td align="left">conf_int</td>
+<td align="left">.pred_lower, .pred_upper</td>
+</tr>
+<tr class="even">
+<td align="left">pred_int</td>
+<td align="left">.pred_lower, .pred_upper</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<p>The third rule regarding the number of rows in the output is
+critical. For example, if any rows of the new data contain missing
+values, the output will be padded with missing results for those rows. A
+main advantage of standardizing the model interface and prediction types
+in <strong>parsnip</strong> is that, one different model are used, the
+syntax identical.Suppose that we used a decision tree to model the aims
+data. Outside of the model specification, there are no significant
+differences in the code pipeline:</p>
+<pre class="r"><code>tree_model &lt;- 
+  decision_tree(min_n = 2) %&gt;% 
+  set_engine(&quot;rpart&quot;) %&gt;% 
+  set_mode(&quot;regression&quot;)
+
+tree_fit &lt;- 
+  tree_model %&gt;% 
+  fit(Sale_Price ~ Longitude + Latitude, data = ames_train)
+
+ames_test_small %&gt;% 
+  select(Sale_Price) %&gt;% 
+  bind_cols(predict(tree_fit, ames_test_small))</code></pre>
+<pre><code>## # A tibble: 5 × 2
+##   Sale_Price .pred
+##        &lt;dbl&gt; &lt;dbl&gt;
+## 1       5.02  5.15
+## 2       5.39  5.15
+## 3       5.28  5.32
+## 4       5.28  5.32
+## 5       5.28  5.32</code></pre>
+<p>This demonstrates the benefit of homogenizing the data analysis
+process in syntax across different models. It enables users to spend
+their time on the results and interpretation rather than having to spend
+time on the syntactical differences between R packages.</p>
+</div>
+<div id="parsnip-extension-packages" class="section level2">
+<h2>6.4 Parsnip-Extension Packages</h2>
+<p>The <strong>parsnip</strong> package itself contains interfaces to a
+number of models. However, for ease of package installation and
+maintenance, there are other tidy model packages that have
+<strong>parsnip</strong> model definitions for other sets of models. The
+<strong>discrim</strong> package has model functions for the set of
+classification techniques called discriminant analysis models, such as
+linear or quadratic discriminant analysis. In this way, the package
+dependencies required for installing <strong>parsnip</strong> are
+reduced. A list of all of the models that can be used with
+<strong>parsnip</strong> (across different packages that are on CREN)
+can be found out: <a href="https://www.tidymodels.org/find" class="uri">https://www.tidymodels.org/find</a></p>
+</div>
+<div id="creating-model-specifications" class="section level2">
+<h2>6.5 Creating Model Specifications</h2>
+<p>It may become tedious to write many model specifications, or to
+remember how to write the code to generate them. The
+<strong>parsnip</strong> package includes an RStudio addin that can
+help. Either choosing this ad in from the<em>Adams</em>two bar menu are
+running the code:</p>
+<pre class="r"><code>#parsnip_addin()</code></pre>
+</div>
+<div id="chapter-summary" class="section level2">
+<h2>6.6. Chapter Summary</h2>
+<p>This chapter introduced the <strong>parsnip</strong> package, which
+provides a common interface from models across R packages using a
+standard syntax. The interface and resulting objects have a predictable
+structure.</p>
+<p>The code for modeling the AIM stated that we will use moving forward
+is:</p>
+<pre class="r"><code>library(tidymodels)
+data(ames)
+ames &lt;- mutate(ames, Sale_rpcie = log10(Sale_Price))
+
+set.seed(502)
+ames_split &lt;- initial_split(ames, prop = 0.8, strata = Sale_Price)
+ames_train &lt;- training(ames_split)
+ames_test &lt;- testing(ames_split)
+
+lm_model &lt;- linear_reg() %&gt;% set_engine(&quot;lm&quot;)</code></pre>
+<p>REFERENCES</p>
+<p>Friedman, J, T Hastie, and R Tibshirani. 2010. “Regularization Paths
+for Generalized Linear Models via Coordinate Descent.” Journal of
+Statistical Software 33 (1): 1.</p>
 </div>
 
 
