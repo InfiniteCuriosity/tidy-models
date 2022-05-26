@@ -1,0 +1,178 @@
+---
+title: "6. Fitting Models with parsnip"
+author: "Russ Conte"
+date: '2022-05-26'
+output: html_document
+---
+
+
+Start by loading the required packages in two lines of code:
+
+```{r Load all required packages in two lines of code}
+
+Packages <- c("tidymodels", "caret")
+lapply(Packages, library, character = TRUE)
+
+tidymodels_prefer(quiet = FALSE)
+
+```
+
+Start with code for multi-core processing
+
+```{r multi-core processing}
+
+library(doParallel)
+cl <- makePSOCKcluster(10)
+registerDoParallel(cl)
+
+```
+
+The **parsnip** package, one of the R packages that are part of the **tidymodels** metapackage, provides a fluent and standardized interface for a variety of different models. In this chapter, we give some motivation for why a common interface is beneficial for understanding and building models in practice and show how to use the **parsnip** package.
+
+6.1 Create a Model
+
+Suppose that a linear regression model was our initial choice. This is equivalent to specifying that the outcome data is numeric and that the predictors are related to the outcome in terms of simple slopes and intercepts:
+
+<center>$y_i = \beta_{0} + \beta_{1}x_{1i} + ... + \beta{_p}x_{pi}$</center>
+
+A variety of methods can be used to estimate the model parameters:
+
+* *Ordinalry linear regression* uses the traditional method of least squares to solve for the model parameters.
+
+* *Regulariized linear regression* adds a penalty to the least squares method to encourage simplicity by removing predictors and/or shrkingking their coefficients towards zero. This can be executed using Bayesian or non-Bayesian techniques.
+
+In R, the **stats** package can be used for the first case. The syntax for linear regression using the function `lm()` is:
+
+```{r Example of linear regression function}
+
+#model <- lm(formula, data, ...)
+
+```
+
+To estimate with regularization, the second case, a Bayesian model can be fit using the **rstanarm** package:
+
+```{r Fitting a regularized model}
+
+#model <- stan_glm(formula, data, family = "gaussian", ...)
+
+```
+
+A popular non-Bayesian approach to regularized regression is the **glmnet** model (Friedman, Hstie, and Tibrhirani 2010), Its syntax is:
+
+```{r glmnet model}
+
+#model <- glmnet(x = matrix, y = vector, family = "gaussian")
+
+```
+
+In this case, the predictor data must already be formatted into a numeric matrix; there is only an `x`/`y` method and no formula method.
+
+For tidymodels, the approach to specifying a model is intended to be more unified:
+
+1. *Specify the model based on its mathematical structure* (e.g. linear regression, random forest, KNN, etc.)
+2. *Specify the engine for fitting the model*. Most often this reflects the software package that should be used, like Stan or **glmnet**. These are models in their own right, and **parsnip** provides consistent interfaces by using these as engines for modeling.
+
+3. *When required, declare the mode of the model*. The mode reflects the type of prediction outcome. For numeric outcomes, the mode is regression. For qualitative outcomes, it is classification. If a model algorithm can only address one type of prediction outcome, such as linear regression, the mode is already set.
+
+These specifications are built without referencing the data.
+
+Once the details of the model have been specified, the model estimation can be done wit either the `fit()` function (to use a formula) or the `fit_xy()` function (when your data are already pre-processed). The **parsnip** package allows the user to be indifferent to the interface of the underlying model you can always use a formula even if the modeling package's function only has the `x`/`y` interface.
+
+The `translate()` function can provide details on how **parsnip** converts the user's code to the package's syntax:
+
+Linear Regression Model Specifications:
+Computation engine is: lm
+Model fit template: stats::lm(formula = missing_arg(), data = missing_arg(), weights = missing_arg())
+
+```{r Example of translate function applied to linear regression}
+
+linear_reg() %>% set_engine("lm") %>% translate()
+
+```
+
+Penalized Linear Regression Model Specifications:
+Main arguments: Penalty = 1
+Computational engine: glmnet
+Model fit template: glmnet::glmnet(x = missing_arg(), y = missing_arg(), weights = missing_arg, family = "gaussian)
+
+```{r Example of penalized regression}
+
+linear_reg(penalty = 1) %>% set_engine("glmnet") %>% translate()
+
+```
+
+Let us walk through how to predict the sale price of properties in the Ames housing data as a function of only longitude and latitude:
+
+```{r Fitting the ames property data as only a function of longitude and latitude}
+
+set.seed(502)
+data(ames)
+ames_split <- initial_split(ames, prop = 0.8, strata = Sale_Price)
+ames_train <- training(ames_split)
+ames_test <- testing(ames_split)
+
+lm_model <-
+  linear_reg() %>%
+  set_engine("lm")
+
+lm_form_fit <-
+  lm_model %>%
+  fit(Sale_Price ~ Longitude + Latitude, data = ames_train)
+
+lm_xy_fit <- lm_model %>%
+  fit_xy(
+    x = ames_train %>% select(Longitude, Latitude),
+    y = ames_train %>% pull(Sale_Price)
+  )
+
+lm_form_fit
+
+lm_xy_fit
+
+```
+
+Not only does **parsnip** enable a consistent model interface for different packages, it also provides consistency in the model arguments. It is common for different functions that fit the same model to have different argument names. Random Forest model functions are a good example. Three commonly used arguments are the number of trees in the ensemble, the number of protectors randomly sample with each split within a tree, and the number of data points required to make a split. For three different R packages mining this algorithm, the arguments are shown in table 6.1.
+
+
+<center><b>Table 6.1: Example argument names for different random forest function.</b></center>
+||
+|:-----|:-----|:-----|:-----|
+|**Argument Type**|**ranger**|**randomForest**|**sparklyr**|
+|# sampled predictors|mtry| mtry|feature_subset_stragety|
+|# trees|num.trees|ntree|num_trees|
+|# data points to split|min.note.size|nodesize|min_instances_per_node|
+___
+
+In an effort to make argument specification less painful, **parsnip** uses common argument names within and between packages. Table 6.2 shows, for random forests, what **parsnip** does:
+
+<center>Table 6.2: Random forest argument names used by parsnip</center>
+||
+|:---|:---|
+|**Argument Type**|**parsnip**|
+|# sampled predictors|mtry|
+|# trees|trees|
+|# data points to split|min_n|
+---
+
+Admittedly, this is one more set of arguments to memorize. However, when other types of models have the same argument types, these names still apply. For example, boosted three ensembles also create a large number of three-based models, so `trees` is also used there, as is `min_n`, and so on.
+
+Our rule of thumb when standardizing argument names is:
+
+>If a practioner were to include these names in a plot or table, would the people viewing those results understand the name?
+
+To you understand how the **parsnip** argument names map to the original names, use the help file for the model (available via `?rand_forest`) as well as the `translate` function:
+
+```{r Understanding how parsnip names map to the original names}
+
+rand_forest(trees = 1000, min_n = 5) %>% 
+  set_engine("ranger") %>% 
+  set_mode("regression") %>% 
+  translate()
+
+```
+
+Modeling functions in **parsnip** separate model arguments into two categories:
+
+* *Main arguments* are more commonly used and tend to be available across engines.
+* *Engine arguments* are either specific to a particular engine or used more rarely.
+
