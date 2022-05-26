@@ -1,0 +1,122 @@
+---
+title: "7. A Model Workflow"
+author: "Russ Conte"
+date: '2022-05-26'
+output: html_document
+---
+
+Start by loading the required packages in two lines of code:
+
+```{r Load all required packages in two lines of code}
+
+Packages <- c("tidymodels", "caret")
+lapply(Packages, library, character = TRUE)
+
+tidymodels_prefer(quiet = FALSE)
+
+```
+
+Start with code for multi-core processing
+
+```{r multi-core processing}
+
+library(doParallel)
+cl <- makePSOCKcluster(10)
+registerDoParallel(cl)
+
+```
+
+
+```{r Code we will use for modeling the Ames data moving forward}
+
+library(tidymodels)
+tidymodels_prefer()
+data(ames)
+ames <- mutate(ames, Sale_rpcie = log10(Sale_Price))
+
+set.seed(502)
+ames_split <- initial_split(ames, prop = 0.8, strata = Sale_Price)
+ames_train <- training(ames_split)
+ames_test <- testing(ames_split)
+
+lm_model <- linear_reg() %>% set_engine("lm")
+
+```
+
+## 7.1 Where Does the Model Begin and End?
+
+Suppose there are *p* predictors, $x_{i1}, ... x_{ip}$ that are used in the model. Linear regression produces a model equation of:
+
+<center>$\hat{y_i} = \hat{\beta}_0 + \hat{\beta_1}x_{i1} + ... + \hat{\beta}_p x_{ip}$</center>
+
+While this is a linear model, it is linear only in its parameters. The predictors could be nonlinear terms (such as log($x_i$))
+
+It is important to focus on the broader *modeling process* instead of only fitting the specific model used to estimate parameters. This broader process includes any preprocessing steps, the model fit itself, as well as potential post-processing activities. In this book, we will refer to this more comprehensive concept as the *model workflow* and highlight how to hand all its components to produce a final model equation.
+
+## 7.2 Workflob Basics
+
+The **workflows** package allows the user to bind modeling and preprocessing objects together. Let's start again with the Ames data and a simple linear model:
+
+```{r First step in using workflows}
+
+lm_model <- 
+  linear_reg() %>% 
+  set_engine("lm")
+
+```
+
+A workflow **always** requires a **parsnip** model object:
+
+```{r Including a parsnip object in the workflow}
+
+lm_workflow <- 
+  workflow() %>% 
+  add_model(lm_model)
+
+lm_workflow
+
+```
+
+Notice that we have not yet specified how this workflow should preprocess the data: `Preprocessor: None`.
+
+If our model is very simple, a standard R formula can be used as a preprocessor:
+
+```{r Using a standard R formula as a preprocessor}
+
+lm_workflow <- 
+  lm_workflow %>% 
+  add_formula(Sale_Price ~ Longitude + Latitude)
+
+lm_workflow
+
+```
+
+Workflows has a `fit()` method that can be used to create the model. Using the objects created in Section 6.6:
+
+```{r Using the fit method to the object created}
+
+lm_fit <- fit(lm_workflow, ames_train)
+lm_fit
+
+```
+
+We can also predict on the fitted workflow:
+
+```{r Making predictions on the fitted workflows}
+
+predict(lm_fit, ames_test %>% slice(1:3))
+
+```
+
+The `predict()` method follows all of the same rules and naming conventions that we described for the **parsnip** package in section 6.3
+
+Both the model and preprocessor can be removed or updated:
+
+```{r Updating the preprocessor}
+
+lm_fit %>% update_formula(Sale_Price ~ Longitude)
+
+```
+
+## 7.3 Adding Raw Variables to the `workflow()`
+
