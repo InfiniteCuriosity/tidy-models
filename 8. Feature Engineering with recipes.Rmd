@@ -1,0 +1,124 @@
+---
+title: "8. Feature Engineering with recipes"
+author: "Russ Conte"
+date: '2022-05-26'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Start by loading the required packages in two lines of code:
+
+```{r Load all required packages in two lines of code}
+
+Packages <- c("tidymodels", "caret", "multilevelmod", "lme4", "VCA", "survival")
+lapply(Packages, library, character = TRUE)
+
+tidymodels_prefer(quiet = FALSE)
+
+```
+
+Start with code for multi-core processing
+
+```{r multi-core processing}
+
+library(doParallel)
+cl <- makePSOCKcluster(10)
+registerDoParallel(cl)
+
+```
+
+
+```{r Code we will use for modeling the Ames data moving forward}
+
+library(tidymodels)
+tidymodels_prefer()
+data(ames)
+ames <- mutate(ames, Sale_rpcie = log10(Sale_Price))
+
+set.seed(502)
+ames_split <- initial_split(ames, prop = 0.8, strata = Sale_Price)
+ames_train <- training(ames_split)
+ames_test <- testing(ames_split)
+
+lm_model <- linear_reg() %>% set_engine("lm")
+
+```
+
+## Introduction to Feature Engineering with recipes
+
+Feature engineering entails reformatting predictor values to make them easier from model to use effectively. This includes transformations and encoding of the data to best represent their important characteristics. Imagine that you have two predictors in a data set that can be more effectively represented in your model as a ratio; creating a new predictor from the ratio of the original two is a simple example of feature engineering.
+
+Take the location of a property in Ames as a more involved example. There are a variety of ways that this spatial information can be exposed to a model, including neighborhood (qualitative measure), longitude/latitude, distance to the nearest school or Iowa State University, and so on.When choosing how to encode these data in modeling, we might choose an option we believe is most associated with the outcome. The original format of the data, for example numeric (e.g., distance) versus categorical (e.g. neighborhood), is also a driving factor in feature engineering choices.
+
+Other examples of pre-processing to better features of modeling include:
+
+*Correlations between predictors can be reduced by a feature extraction or the removal of some predictors.
+
+*Once and predictors have missing values, they can be imputed using a sub – model.
+
+*Models that use variance – type measures may benefit from coarsing the distribution of some predictors to be metetric by estimating a transformation.
+
+Feature engineering and data processing can also involve reformatting that may be required by the model. Some models use geometric distance metrics and, consequently, numeric protectors should be centered and scaled so that they are all in the same units. Otherwise, the distance values will be biased by the scale of each column.
+
+Note that appendix A contains a small table of recommended pre-processing techniques for different models.
+
+In this chapter we introduce the **recipes**package that you can use to combine different feature engineering and pre-processing tasks into a single object and apply those transformations to different data sets. The **recipes** package is, like **parsnip** from models, one of the core tidymodels packages.
+
+This chapter uses the Ames housing data and the R objects created in the book so far and summarized in section 7.7.
+
+## 8.1 A Simple `recipe()` For the Ames Housing Data
+
+In this section, we will focus on a small subet of the predictors available in the Ames housing data:
+
+• The neighborhood (qualitative, with 29 neighborhoods in the training set)
+
+• The gross above-grade living area (continuous, names `Gr_Liv_Area`)
+
+* The year built(`Year_Built`)
+
+* The type of building (`Bldg_Type` with values `OneFam` (n = 1,936), `TwoFmCon` (n = 50), `Duplex` (n = 88), `Twnhs` (n = 77), and `TwnhsE` (n = 191))
+
+Suppose that an initial ordinary linear regression model were fit to these data. Recalling that, in Chapter 4, the prices were pre=logged, a standard call to `lm()` might look like:
+
+```{r One example of a standard call to LM of a small subset of the Ames housing data}
+
+lm(Sale_Price ~ Neighborhood + log10(Gr_Liv_Area) + Year_Built + Bldg_Type, data = ames)
+
+```
+
+A recipe is also an object that defines a series of steps for data processing. Unlike the formula method inside a modeling function, the recipe defines the steps via `step_*()` functions without immediately executing them; it is only a specification of what should be done. Here is a recipe equivalent to the previous formual that builds on the code summary in section 5.5:
+
+```{r Code example using recipe equivalent to the previous formula}
+
+simple_ames <- 
+  recipe(Sale_Price ~ Neighborhood + Gr_Liv_Area + Year_Built + Bldg_Type, data = ames_train) %>% 
+  step_log(Gr_Liv_Area, base = 10) %>% 
+  step_dummy(all_nominal_predictors())
+simple_ames
+
+```
+
+Let's break this down:
+
+1 The call to `recipe()` with a formula tells recipe the  *roles* of the "ingredients" or variables (e.g. predictor, outcome). It only uses the data `ames_train` to determine the data types for the columns.
+
+2. `step_log()` declares that `Gr_Liv_Area` should be log transformed.
+
+3. `step_dummy()` specifies which variables should be converted from a qualitative format to a quantitative format, in this case, using dummy or indicator variables.
+
+The function `all_nominal_predictors` captures the names of any predictor columns that are currently factor of character (i.e. nominal) in nature. This is a **dplyr**-like selector function similar to `starts_with()` or `matches()` but that can only be used inside of a recipe.
+
+What is the advantage to using a recipe, over a formula or raw predictors? There are a few including:
+
+* These computations can be recycled across models since they are not tightly coupled to the modeling function.
+
+* A recipe enables a broader set of data processing choices than formulas can offer.
+
+* The syntax can be very compact. For example `all_nominal_predictors()` can be used to capture many variables for specific types of processing while the formula would require each to be explicitly listed.
+
+* All data processing can be captured in a single R object instead of scripts that are repeated or even spread across different files.
+
+## 8.2 Using recipes
