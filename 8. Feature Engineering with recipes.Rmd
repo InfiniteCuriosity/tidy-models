@@ -188,3 +188,45 @@ lm_fit %>%
 
 ```
 
+## 8.2 How Data Are Used by the `recipe()`
+
+Data are passed to recipes at different stages.
+
+First, when calling `recipe(..., data)`, the data set is used to determine the data types of each column so taht selectors such as `all_muneric()` or `all_numeric_predictors()` can be used.
+
+Second, when preparing the data using `fit(workflow, data)`, the trainig data are used for all estimation operations including a recipe that may be part of the `workflow`, from determining factor levels to computing PCA components and everything in-between.
+
+Finally, when using `predict(workflow, new_data)`, no model or preprocessor parameters like those from recipes are re-estimated using the values in `new_data`.
+
+## Examples of recipe Sets
+
+Before proceeding, let's take an extended tour of the capabilities of **recipes** and explore some of the most important`step_*()` functions. These recipe step functions each specify a specific possible step in a feature engineering process, and different recipe steps can have different effects on columns of data.
+
+### 8.4.1 Encoding Qualitative Data In A Numeric Format
+
+One of the most common feature engineering tasks is transforming nominal or qualitative data (factors or characters) so they can be encoded or represented numerically. Sometimes we can alter the factor levels of a qualitative column in helpful ways prior to such a transformation. For example, `step_unknown()` can be used to change missing values to a dedicated factor level. Similarly, if we anticipate that a new factor level may be encountered in future dta, `step_novel()` can allot a new level for this purpose.
+
+Additionally, `step_other()` can be used to analyze the frequencies of the factor levels in the training set an dconvert infrequently occurring values to a catch-all level of "other", with a threshold that can be specified. A good example is the `Neighborhood` predictor in our data, shown in Figure 8.1: 
+
+```{r barchart of neighborhoods in the Ames training set}
+
+ggplot(ames_train, aes(x = Neighborhood)) +
+  geom_bar() +
+  coord_flip()
+
+```
+
+Here we see the two neighborhoods have less than five properties and the training data (Landmark and Green Hills); in this case, no houses at all in the Landmark neighborhoods were included in the training set. For some models, it may be problematic to have dummy variables was single nonzero entries in the column. At a minimum, it is highly improbable that these features would be important to a model. If we add `step_other(Neighborhood, threshold = 0.01)` to our recipe, the bottom 1% of the neighborhoods will be lumped into a new level called "other." In this training set, this will catch seven neighborhoods.
+
+From the Ames data, we can amend the recipe to use:
+
+```{r Amended Ames training set to group lowest number of properties in neighborhood}
+
+simple_ames <- 
+  recipe(Sale_Price ~ Neighborhood + Gr_Liv_Area + Year_Built + Bldg_Type, data = ames_train) %>% 
+  step_log(Gr_Liv_Area, base = 10) %>% 
+  step_other(Neighborhood, threshold = 0.01) %>% 
+  step_dummy(all_nominal_predictors())
+
+```
+
