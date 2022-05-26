@@ -176,3 +176,30 @@ Modeling functions in **parsnip** separate model arguments into two categories:
 * *Main arguments* are more commonly used and tend to be available across engines.
 * *Engine arguments* are either specific to a particular engine or used more rarely.
 
+## 6.2 Use the Model Results
+
+Once the model is created and fit, we can use the results in a variety of ways; we might want to plot, print, or otherwise examine the model output. Several quantities are stored in a **parsnip** model object, including the fitted model. This can be found in an element called `fit`, which can be returned using the `extract_fit_engine()` function:
+
+```{r Using the model results}
+
+lm_form_fit %>% extract_fit_engine()
+
+```
+
+Normal methods can be applied to this object, such as printing and plotting:
+
+```{r Printing and plotting a parsnip object}
+
+lm_form_fit %>% extract_fit_engine() %>% vcov()
+
+```
+
+The **broom** package can convert many types of model objects to a tidy structure. For example, using the `tidy()` method on the linear model produces:
+
+```{r Using the tidy() method on the linear model}
+
+tidy(lm_form_fit)
+
+```
+
+One important principle in the tidymodels ecosystem is that a function should return values that are *predictable, consistent,* and *unsurprising*.

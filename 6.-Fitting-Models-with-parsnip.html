@@ -387,7 +387,7 @@ lapply(Packages, library, character = TRUE)</code></pre>
 ## ✖ dplyr::filter()  masks stats::filter()
 ## ✖ dplyr::lag()     masks stats::lag()
 ## ✖ recipes::step()  masks stats::step()
-## • Dig deeper into tidy modeling with R at https://www.tmwr.org</code></pre>
+## • Use tidymodels_prefer() to resolve common conflicts.</code></pre>
 <pre><code>## Loading required package: lattice</code></pre>
 <pre><code>## 
 ## Attaching package: &#39;caret&#39;</code></pre>
@@ -682,6 +682,43 @@ available across engines.</li>
 <li><em>Engine arguments</em> are either specific to a particular engine
 or used more rarely.</li>
 </ul>
+<div id="use-the-model-results" class="section level2">
+<h2>6.2 Use the Model Results</h2>
+<p>Once the model is created and fit, we can use the results in a
+variety of ways; we might want to plot, print, or otherwise examine the
+model output. Several quantities are stored in a
+<strong>parsnip</strong> model object, including the fitted model. This
+can be found in an element called <code>fit</code>, which can be
+returned using the <code>extract_fit_engine()</code> function:</p>
+<pre class="r"><code>lm_form_fit %&gt;% extract_fit_engine()</code></pre>
+<pre><code>## 
+## Call:
+## stats::lm(formula = Sale_Price ~ Longitude + Latitude, data = data)
+## 
+## Coefficients:
+## (Intercept)    Longitude     Latitude  
+##  -128056769      -807916      1250927</code></pre>
+<p>Normal methods can be applied to this object, such as printing and
+plotting:</p>
+<pre class="r"><code>lm_form_fit %&gt;% extract_fit_engine() %&gt;% vcov()</code></pre>
+<pre><code>##               (Intercept)    Longitude      Latitude
+## (Intercept)  4.305363e+13 327019204203 -295724926606
+## Longitude    3.270192e+11   3436263877    -124601638
+## Latitude    -2.957249e+11   -124601638    6757729689</code></pre>
+<p>The <strong>broom</strong> package can convert many types of model
+objects to a tidy structure. For example, using the <code>tidy()</code>
+method on the linear model produces:</p>
+<pre class="r"><code>tidy(lm_form_fit)</code></pre>
+<pre><code>## # A tibble: 3 × 5
+##   term           estimate std.error statistic  p.value
+##   &lt;chr&gt;             &lt;dbl&gt;     &lt;dbl&gt;     &lt;dbl&gt;    &lt;dbl&gt;
+## 1 (Intercept) -128056769.  6561527.     -19.5 1.04e-78
+## 2 Longitude      -807916.    58620.     -13.8 1.31e-41
+## 3 Latitude       1250927.    82205.      15.2 6.19e-50</code></pre>
+<p>One important principle in the tidymodels ecosystem is that a
+function should return values that are <em>predictable, consistent,</em>
+and <em>unsurprising</em>.</p>
+</div>
 
 
 
