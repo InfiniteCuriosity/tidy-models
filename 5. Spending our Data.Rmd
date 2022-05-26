@@ -28,3 +28,109 @@ registerDoParallel(cl)
 ```
 
 There are several steps to creating a useful model, including parameter estimation, model selection and tuning, and performance assessment. At the start of a new project, there's usually an initial finite pull of data available for all these tasks, which we can think of as an available data budget. How should the date be applied to different steps or tasks?The idea of*data spending*is an important first consideration with modeling, especially as it relates to empirical validation.
+
+##5.1 Common methods for splitting
+
+The primary approach for empirical model validation is to split the existing pool of data into two distinct sets, the training set, and the test set. One portion of the data is used to develop an optimize the model. This *training set* is usually the majority of the data. These data are a sandbox from model building or different models can be fit, featuring engineering strategies are investigated, and so on. As modeling practitioners, we spend the vast majority of the modeling process using the training set as the substrate to develop the model.
+
+The other portion of the data is placed into the *test set* this is held in reserve until one or two models are chosen as models most likely to succeed. The test set is then used as the final arbiter to determine the efficacy of the model. It is critical to look at the test set only once; otherwise it becomes part of the modeling process.
+
+Suppose we allocate 80% of the data to the training set and the remaining 20% for testing. The most common method to do the split is to a simple random sampling. The **rsample** package as tools for making random splits such as this; the function `initial_split()`was created for this purpose. It takes the frame as an argument as well as the portion to be placed into training. Using the data frame produced by the code snippet from the summary in section 4.2 that prepared the Ames data set.
+
+We begin by setting the seed so the results are reproducible:
+
+```{r Splitting the Ames data set}
+
+set.seed(501)
+
+```
+
+Create an 80/20 split of the data:
+
+```{r Create an 80/20 split of the data}
+
+data(ames)
+ames_split <- initial_split(ames, prop = 0.8)
+ames_split
+
+```
+
+The printed information do you note the amount of data in the training set (n = 2,344) the amount and the test set (n = 586), and the size of the original pool of samples (n = 2,930).
+
+The object `ames_split` is an `rsplit` object and contains only the partitioning information; to get the resulting data sets, we apply two more functions:
+
+```{r Create train and test data sets from the original data and the split}
+
+ames_train <- training(ames_split)
+ames_test <- testing(ames_split)
+
+dim(ames_train)
+dim(ames_test)
+
+```
+
+As discussed in chapter 4, the sale price distribution is right skewed, with proportionally more inexpensive houses than expenses of houses on either side of the center of the distribution. The worry here with simple splitting is that the more expensive houses would not be well represented in the training set; This would increase the risk that our models would be ineffective at predicting the price for such properties. The dotted vertical lines in figure 5.1 indicate the four quartiles for these data. A stratified random sample would conduct the 80/20 split within each of these data subsets and then pull the results. In **rsample** this is achieved using the `strata` argument:
+
+```{r 80/20 split of the Ames data}
+
+set.seed(502)
+ames_split <- initial_split(ames, prop = 0.8, strata = Sale_Price)
+ames_train <- training(ames_split)
+ames_test <- testing(ames_split)
+
+dim(ames_train)
+dim(ames_test)
+
+```
+
+Note that only a single column can be used for stratification.
+
+##5.3 Multi-level data
+
+With the Ames housing data, a property is considered to be the *independent experimental unit*. It is safe to assume that, statistically, the data from a property are independent of other properties. For other applications this is not always the case:
+
+*For longitude data data, for example, the same independent experimental unit can be measured over multiple time points. For example, a human subject in a medical trial.
+
+*A batch of manufacture product might also be considered the independent experimental unit. In repeated measure designs, replicate data points from a batch are collected at multiple times.
+
+*Johnson at all (2018) report on an experiment where different trees were sampled across the top and bottom portions of a stem. Here, the tree is the experimental unit and the data hierarchy is within the sample position within the tree.
+
+Chapter 9 of M Kuhn and Johnson (2020) contains other examples.
+
+In these situations, the data set will have multiple rows per experimental unit. Simple resembling across rows would leave to some data within an experiment until unit being in the training set and others in the test set. Data splitting should occur at the independent experimental unit level of data. For example, to produce an 80s/20 split of the Ames housing data set, 80% of the properties should be allocated for the training set.
+
+## 5.4. Other Considerations for a Data Budget
+
+When deciding how to spend the data available to you, keep a few more things in mind. First, it is critical to quarantine the test set from any model building activities. As you read this book, notice which data are exposed to the model at any given time.
+
+It is critical that the test set continues to mirror what the model would encounter in the wild. In other words, the test set should always resemble new data that will be given to the model.
+
+Chapter 10 will discuss solid, data – driven methodologies for data usage that will reduce the risk related to bias, overfitting, and other issues. Many of these methods applied the data-splitting tools introduced in this chapter.
+
+Finally, the considerations in this chapter apply to developing and choosing a reliable model, the main topic of this book. When training a final chose a model for production, after ascertaining the expected performance on new data, practitioners often use all available data for better parameter estimation.
+
+5.5 Chapter Summary
+
+Data splitting is the fundamental strategy for empirical validation of models. Even in the era of unrestrained data collection, a typical modeling project has a limited amount of appropriate data, and why spending on a project data is necessary. In this chapter, we discussed several strategies for partitioning the data into distinct groups for modeling and valuation.
+
+At this checkpoint, the important code snippets for preparing and splitting are:
+
+```{r Splitting code for preparing and splitting}
+
+ames <- ames %>% mutate(Sale_Price = log10(Sale_Price))
+
+set.seed(502)
+ames_split <- initial_split(ames,prop = 0.8, strata = Sale_Price)
+ames_train <- training(ames_split)
+ames_test <- testing(ames_split)
+
+dim(ames_train)
+dim(ames_test)
+
+
+```
+
+REFERENCES
+
+Johnson, D, P Eckart, N Alsamadisi, H Noble, C Martin, and R Spicer. 2018. “Polar Auxin Transport Is Implicated in Vessel Differentiation and Spatial Patterning During Secondary Growth in Populus.” American Journal of Botany 105 (2): 186–96.
+———. 2020. Feature Engineering and Selection: A Practical Approach for Predictive Models. CRC Press.

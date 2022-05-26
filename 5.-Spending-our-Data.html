@@ -387,7 +387,7 @@ lapply(Packages, library, character = TRUE)</code></pre>
 ## ✖ dplyr::filter()  masks stats::filter()
 ## ✖ dplyr::lag()     masks stats::lag()
 ## ✖ recipes::step()  masks stats::step()
-## • Dig deeper into tidy modeling with R at https://www.tmwr.org</code></pre>
+## • Search for functions across packages at https://www.tidymodels.org/find/</code></pre>
 <pre><code>## Loading required package: lattice</code></pre>
 <pre><code>## 
 ## Attaching package: &#39;caret&#39;</code></pre>
@@ -449,6 +449,140 @@ as an available data budget. How should the date be applied to different
 steps or tasks?The idea of<em>data spending</em>is an important first
 consideration with modeling, especially as it relates to empirical
 validation.</p>
+<p>##5.1 Common methods for splitting</p>
+<p>The primary approach for empirical model validation is to split the
+existing pool of data into two distinct sets, the training set, and the
+test set. One portion of the data is used to develop an optimize the
+model. This <em>training set</em> is usually the majority of the data.
+These data are a sandbox from model building or different models can be
+fit, featuring engineering strategies are investigated, and so on. As
+modeling practitioners, we spend the vast majority of the modeling
+process using the training set as the substrate to develop the
+model.</p>
+<p>The other portion of the data is placed into the <em>test set</em>
+this is held in reserve until one or two models are chosen as models
+most likely to succeed. The test set is then used as the final arbiter
+to determine the efficacy of the model. It is critical to look at the
+test set only once; otherwise it becomes part of the modeling
+process.</p>
+<p>Suppose we allocate 80% of the data to the training set and the
+remaining 20% for testing. The most common method to do the split is to
+a simple random sampling. The <strong>rsample</strong> package as tools
+for making random splits such as this; the function
+<code>initial_split()</code>was created for this purpose. It takes the
+frame as an argument as well as the portion to be placed into training.
+Using the data frame produced by the code snippet from the summary in
+section 4.2 that prepared the Ames data set.</p>
+<p>We begin by setting the seed so the results are reproducible:</p>
+<pre class="r"><code>set.seed(501)</code></pre>
+<p>Create an 80/20 split of the data:</p>
+<pre class="r"><code>data(ames)
+ames_split &lt;- initial_split(ames, prop = 0.8)
+ames_split</code></pre>
+<pre><code>## &lt;Analysis/Assess/Total&gt;
+## &lt;2344/586/2930&gt;</code></pre>
+<p>The printed information do you note the amount of data in the
+training set (n = 2,344) the amount and the test set (n = 586), and the
+size of the original pool of samples (n = 2,930).</p>
+<p>The object <code>ames_split</code> is an <code>rsplit</code> object
+and contains only the partitioning information; to get the resulting
+data sets, we apply two more functions:</p>
+<pre class="r"><code>ames_train &lt;- training(ames_split)
+ames_test &lt;- testing(ames_split)
+
+dim(ames_train)</code></pre>
+<pre><code>## [1] 2344   74</code></pre>
+<pre class="r"><code>dim(ames_test)</code></pre>
+<pre><code>## [1] 586  74</code></pre>
+<p>As discussed in chapter 4, the sale price distribution is right
+skewed, with proportionally more inexpensive houses than expenses of
+houses on either side of the center of the distribution. The worry here
+with simple splitting is that the more expensive houses would not be
+well represented in the training set; This would increase the risk that
+our models would be ineffective at predicting the price for such
+properties. The dotted vertical lines in figure 5.1 indicate the four
+quartiles for these data. A stratified random sample would conduct the
+80/20 split within each of these data subsets and then pull the results.
+In <strong>rsample</strong> this is achieved using the
+<code>strata</code> argument:</p>
+<pre class="r"><code>set.seed(502)
+ames_split &lt;- initial_split(ames, prop = 0.8, strata = Sale_Price)
+ames_train &lt;- training(ames_split)
+ames_test &lt;- testing(ames_split)
+
+dim(ames_train)</code></pre>
+<pre><code>## [1] 2342   74</code></pre>
+<pre class="r"><code>dim(ames_test)</code></pre>
+<pre><code>## [1] 588  74</code></pre>
+<p>Note that only a single column can be used for stratification.</p>
+<p>##5.3 Multi-level data</p>
+<p>With the Ames housing data, a property is considered to be the
+<em>independent experimental unit</em>. It is safe to assume that,
+statistically, the data from a property are independent of other
+properties. For other applications this is not always the case:</p>
+<p>*For longitude data data, for example, the same independent
+experimental unit can be measured over multiple time points. For
+example, a human subject in a medical trial.</p>
+<p>*A batch of manufacture product might also be considered the
+independent experimental unit. In repeated measure designs, replicate
+data points from a batch are collected at multiple times.</p>
+<p>*Johnson at all (2018) report on an experiment where different trees
+were sampled across the top and bottom portions of a stem. Here, the
+tree is the experimental unit and the data hierarchy is within the
+sample position within the tree.</p>
+<p>Chapter 9 of M Kuhn and Johnson (2020) contains other examples.</p>
+<p>In these situations, the data set will have multiple rows per
+experimental unit. Simple resembling across rows would leave to some
+data within an experiment until unit being in the training set and
+others in the test set. Data splitting should occur at the independent
+experimental unit level of data. For example, to produce an 80s/20 split
+of the Ames housing data set, 80% of the properties should be allocated
+for the training set.</p>
+<div id="other-considerations-for-a-data-budget" class="section level2">
+<h2>5.4. Other Considerations for a Data Budget</h2>
+<p>When deciding how to spend the data available to you, keep a few more
+things in mind. First, it is critical to quarantine the test set from
+any model building activities. As you read this book, notice which data
+are exposed to the model at any given time.</p>
+<p>It is critical that the test set continues to mirror what the model
+would encounter in the wild. In other words, the test set should always
+resemble new data that will be given to the model.</p>
+<p>Chapter 10 will discuss solid, data – driven methodologies for data
+usage that will reduce the risk related to bias, overfitting, and other
+issues. Many of these methods applied the data-splitting tools
+introduced in this chapter.</p>
+<p>Finally, the considerations in this chapter apply to developing and
+choosing a reliable model, the main topic of this book. When training a
+final chose a model for production, after ascertaining the expected
+performance on new data, practitioners often use all available data for
+better parameter estimation.</p>
+<p>5.5 Chapter Summary</p>
+<p>Data splitting is the fundamental strategy for empirical validation
+of models. Even in the era of unrestrained data collection, a typical
+modeling project has a limited amount of appropriate data, and why
+spending on a project data is necessary. In this chapter, we discussed
+several strategies for partitioning the data into distinct groups for
+modeling and valuation.</p>
+<p>At this checkpoint, the important code snippets for preparing and
+splitting are:</p>
+<pre class="r"><code>ames &lt;- ames %&gt;% mutate(Sale_Price = log10(Sale_Price))
+
+set.seed(502)
+ames_split &lt;- initial_split(ames,prop = 0.8, strata = Sale_Price)
+ames_train &lt;- training(ames_split)
+ames_test &lt;- testing(ames_split)
+
+dim(ames_train)</code></pre>
+<pre><code>## [1] 2342   74</code></pre>
+<pre class="r"><code>dim(ames_test)</code></pre>
+<pre><code>## [1] 588  74</code></pre>
+<p>REFERENCES</p>
+<p>Johnson, D, P Eckart, N Alsamadisi, H Noble, C Martin, and R Spicer.
+2018. “Polar Auxin Transport Is Implicated in Vessel Differentiation and
+Spatial Patterning During Secondary Growth in Populus.” American Journal
+of Botany 105 (2): 186–96. ———. 2020. Feature Engineering and Selection:
+A Practical Approach for Predictive Models. CRC Press.</p>
+</div>
 
 
 
