@@ -371,7 +371,7 @@ pre code {
 
 
 <p>Start by loading the required packages in two lines of code:</p>
-<pre class="r"><code>Packages &lt;- c(&quot;tidymodels&quot;, &quot;caret&quot;)
+<pre class="r"><code>Packages &lt;- c(&quot;tidymodels&quot;, &quot;caret&quot;, &quot;multilevelmod&quot;, &quot;lme4&quot;, &quot;VCA&quot;, &quot;survival&quot;)
 lapply(Packages, library, character = TRUE)</code></pre>
 <pre><code>## ── Attaching packages ────────────────────────────────────── tidymodels 0.2.0 ──</code></pre>
 <pre><code>## ✔ broom        0.8.0     ✔ recipes      0.2.0
@@ -387,7 +387,7 @@ lapply(Packages, library, character = TRUE)</code></pre>
 ## ✖ dplyr::filter()  masks stats::filter()
 ## ✖ dplyr::lag()     masks stats::lag()
 ## ✖ recipes::step()  masks stats::step()
-## • Search for functions across packages at https://www.tidymodels.org/find/</code></pre>
+## • Learn how to get started at https://www.tidymodels.org/start/</code></pre>
 <pre><code>## Loading required package: lattice</code></pre>
 <pre><code>## 
 ## Attaching package: &#39;caret&#39;</code></pre>
@@ -397,6 +397,22 @@ lapply(Packages, library, character = TRUE)</code></pre>
 <pre><code>## The following object is masked from &#39;package:purrr&#39;:
 ## 
 ##     lift</code></pre>
+<pre><code>## Loading required package: Matrix</code></pre>
+<pre><code>## 
+## Attaching package: &#39;Matrix&#39;</code></pre>
+<pre><code>## The following objects are masked from &#39;package:tidyr&#39;:
+## 
+##     expand, pack, unpack</code></pre>
+<pre><code>## 
+## Attaching package: &#39;VCA&#39;</code></pre>
+<pre><code>## The following objects are masked from &#39;package:lme4&#39;:
+## 
+##     fixef, getL, ranef</code></pre>
+<pre><code>## 
+## Attaching package: &#39;survival&#39;</code></pre>
+<pre><code>## The following object is masked from &#39;package:caret&#39;:
+## 
+##     cluster</code></pre>
 <pre><code>## [[1]]
 ##  [1] &quot;yardstick&quot;    &quot;workflowsets&quot; &quot;workflows&quot;    &quot;tune&quot;         &quot;tidyr&quot;       
 ##  [6] &quot;tibble&quot;       &quot;rsample&quot;      &quot;recipes&quot;      &quot;purrr&quot;        &quot;parsnip&quot;     
@@ -410,7 +426,46 @@ lapply(Packages, library, character = TRUE)</code></pre>
 ## [11] &quot;purrr&quot;        &quot;parsnip&quot;      &quot;modeldata&quot;    &quot;infer&quot;        &quot;ggplot2&quot;     
 ## [16] &quot;dplyr&quot;        &quot;dials&quot;        &quot;scales&quot;       &quot;broom&quot;        &quot;tidymodels&quot;  
 ## [21] &quot;stats&quot;        &quot;graphics&quot;     &quot;grDevices&quot;    &quot;utils&quot;        &quot;datasets&quot;    
-## [26] &quot;methods&quot;      &quot;base&quot;</code></pre>
+## [26] &quot;methods&quot;      &quot;base&quot;        
+## 
+## [[3]]
+##  [1] &quot;multilevelmod&quot; &quot;caret&quot;         &quot;lattice&quot;       &quot;yardstick&quot;    
+##  [5] &quot;workflowsets&quot;  &quot;workflows&quot;     &quot;tune&quot;          &quot;tidyr&quot;        
+##  [9] &quot;tibble&quot;        &quot;rsample&quot;       &quot;recipes&quot;       &quot;purrr&quot;        
+## [13] &quot;parsnip&quot;       &quot;modeldata&quot;     &quot;infer&quot;         &quot;ggplot2&quot;      
+## [17] &quot;dplyr&quot;         &quot;dials&quot;         &quot;scales&quot;        &quot;broom&quot;        
+## [21] &quot;tidymodels&quot;    &quot;stats&quot;         &quot;graphics&quot;      &quot;grDevices&quot;    
+## [25] &quot;utils&quot;         &quot;datasets&quot;      &quot;methods&quot;       &quot;base&quot;         
+## 
+## [[4]]
+##  [1] &quot;lme4&quot;          &quot;Matrix&quot;        &quot;multilevelmod&quot; &quot;caret&quot;        
+##  [5] &quot;lattice&quot;       &quot;yardstick&quot;     &quot;workflowsets&quot;  &quot;workflows&quot;    
+##  [9] &quot;tune&quot;          &quot;tidyr&quot;         &quot;tibble&quot;        &quot;rsample&quot;      
+## [13] &quot;recipes&quot;       &quot;purrr&quot;         &quot;parsnip&quot;       &quot;modeldata&quot;    
+## [17] &quot;infer&quot;         &quot;ggplot2&quot;       &quot;dplyr&quot;         &quot;dials&quot;        
+## [21] &quot;scales&quot;        &quot;broom&quot;         &quot;tidymodels&quot;    &quot;stats&quot;        
+## [25] &quot;graphics&quot;      &quot;grDevices&quot;     &quot;utils&quot;         &quot;datasets&quot;     
+## [29] &quot;methods&quot;       &quot;base&quot;         
+## 
+## [[5]]
+##  [1] &quot;VCA&quot;           &quot;lme4&quot;          &quot;Matrix&quot;        &quot;multilevelmod&quot;
+##  [5] &quot;caret&quot;         &quot;lattice&quot;       &quot;yardstick&quot;     &quot;workflowsets&quot; 
+##  [9] &quot;workflows&quot;     &quot;tune&quot;          &quot;tidyr&quot;         &quot;tibble&quot;       
+## [13] &quot;rsample&quot;       &quot;recipes&quot;       &quot;purrr&quot;         &quot;parsnip&quot;      
+## [17] &quot;modeldata&quot;     &quot;infer&quot;         &quot;ggplot2&quot;       &quot;dplyr&quot;        
+## [21] &quot;dials&quot;         &quot;scales&quot;        &quot;broom&quot;         &quot;tidymodels&quot;   
+## [25] &quot;stats&quot;         &quot;graphics&quot;      &quot;grDevices&quot;     &quot;utils&quot;        
+## [29] &quot;datasets&quot;      &quot;methods&quot;       &quot;base&quot;         
+## 
+## [[6]]
+##  [1] &quot;survival&quot;      &quot;VCA&quot;           &quot;lme4&quot;          &quot;Matrix&quot;       
+##  [5] &quot;multilevelmod&quot; &quot;caret&quot;         &quot;lattice&quot;       &quot;yardstick&quot;    
+##  [9] &quot;workflowsets&quot;  &quot;workflows&quot;     &quot;tune&quot;          &quot;tidyr&quot;        
+## [13] &quot;tibble&quot;        &quot;rsample&quot;       &quot;recipes&quot;       &quot;purrr&quot;        
+## [17] &quot;parsnip&quot;       &quot;modeldata&quot;     &quot;infer&quot;         &quot;ggplot2&quot;      
+## [21] &quot;dplyr&quot;         &quot;dials&quot;         &quot;scales&quot;        &quot;broom&quot;        
+## [25] &quot;tidymodels&quot;    &quot;stats&quot;         &quot;graphics&quot;      &quot;grDevices&quot;    
+## [29] &quot;utils&quot;         &quot;datasets&quot;      &quot;methods&quot;       &quot;base&quot;</code></pre>
 <pre class="r"><code>tidymodels_prefer(quiet = FALSE)</code></pre>
 <pre><code>## [conflicted] Will prefer dplyr::filter over any other package</code></pre>
 <pre><code>## [conflicted] Will prefer dplyr::select over any other package
@@ -463,11 +518,11 @@ model. Linear regression produces a model equation of:</p>
 <p>While this is a linear model, it is linear only in its parameters.
 The predictors could be nonlinear terms (such as log(<span class="math inline">\(x_i\)</span>))</p>
 <p>It is important to focus on the broader <em>modeling process</em>
-instead of only fitting the specific model used to estimate paramters.
+instead of only fitting the specific model used to estimate parameters.
 This broader process includes any preprocessing steps, the model fit
 itself, as well as potential post-processing activities. In this book,
 we will refer to this more comprehensive concept as the <em>model
-workflow</em> and hilight how to hand all its components to produce a
+workflow</em> and highlight how to hand all its components to produce a
 final model equation.</p>
 </div>
 <div id="workflob-basics" class="section level2">
@@ -514,7 +569,7 @@ lm_workflow</code></pre>
 ## 
 ## Computational engine: lm</code></pre>
 <p>Workflows has a <code>fit()</code> method that can be used to create
-the model. Using the objectes created in Section 6.6:</p>
+the model. Using the objects created in Section 6.6:</p>
 <pre class="r"><code>lm_fit &lt;- fit(lm_workflow, ames_train)
 lm_fit</code></pre>
 <pre><code>## ══ Workflow [trained] ══════════════════════════════════════════════════════════
@@ -559,6 +614,214 @@ package in section 6.3</p>
 </div>
 <div id="adding-raw-variables-to-the-workflow" class="section level2">
 <h2>7.3 Adding Raw Variables to the <code>workflow()</code></h2>
+<p>There is another interface for passing data to the model, the
+<code>add_variables()</code> function, which uses a
+<strong>dplyr</strong>-like syntax for choosing variables. The function
+has two primary arguments: <code>outcomes</code> and
+<code>predictors</code>. These use a selection approach similar to the
+<strong>tidyselect</strong> backend of <strong>tidyverse</strong>
+packages to capture multiple selectors using <code>c()</code></p>
+<pre class="r"><code>lm_workflow &lt;- 
+  lm_workflow %&gt;% 
+  remove_formula() %&gt;% 
+  add_variables(outcome = Sale_Price, predictors = c(Longitude, Latitude))</code></pre>
+<p>One nice aspect is that any outcome columns accidentally specified in
+the predictors argument will be quietly remove.d This facilitates the
+use of:</p>
+<pre class="r"><code>#predictors = everything()</code></pre>
+<p>When the model is fit, the specification assembles these data,
+unaltered, into a data frame and passes it to the underlying
+function:</p>
+<pre class="r"><code>fit(lm_workflow, ames_train)</code></pre>
+<pre><code>## ══ Workflow [trained] ══════════════════════════════════════════════════════════
+## Preprocessor: Variables
+## Model: linear_reg()
+## 
+## ── Preprocessor ────────────────────────────────────────────────────────────────
+## Outcomes: Sale_Price
+## Predictors: c(Longitude, Latitude)
+## 
+## ── Model ───────────────────────────────────────────────────────────────────────
+## 
+## Call:
+## stats::lm(formula = ..y ~ ., data = data)
+## 
+## Coefficients:
+## (Intercept)    Longitude     Latitude  
+##  -128056769      -807916      1250927</code></pre>
+<p>In the next chapter, we will look at a more powerful preprocessor
+(called a <em>recipe</em>) that can also be added to a workflow.</p>
+</div>
+<div id="how-does-a-workflow-use-the-formula" class="section level2">
+<h2>7.4 How does a <code>workflow()</code> Use the Formula?</h2>
+<p>A workflow is a general purpose interface. When
+<code>add_formula()</code> is used, how should the workflow pre-process
+the data? Since the pre-processing is model dependent,
+<strong>workflows</strong> attempts to emulate what the underlying model
+would do whenever possible. If it is not possible, the formula
+processing should not do anything to the columns used in the formula.
+Let’s look at that more detail.</p>
+<div id="tree-based-models" class="section level3">
+<h3>Tree-Based Models</h3>
+<p>We will create a solution in <strong>workflows</strong> that is an
+optional supplementary model formula that can be passed to
+<code>add_model()</code>. The <code>add_variable()</code> specification
+provides the bare column names, and then the actual formula given to the
+model is wet within <code>add_model()</code>:</p>
+<pre class="r"><code>data(Orthodont)
+
+multilevel_spec &lt;- linear_reg() %&gt;% set_engine(&quot;lmer&quot;)
+
+multilevel_workflow &lt;- 
+  workflow() %&gt;% 
+  add_variables(outcome = distance, predictors = c(Sex, age, Subject)) %&gt;% 
+  add_model(multilevel_spec,
+            formula = distance ~ Sex + (age | Subject))
+
+multilevel_fit &lt;- fit(multilevel_workflow, data = Orthodont)
+multilevel_fit</code></pre>
+<pre><code>## ══ Workflow [trained] ══════════════════════════════════════════════════════════
+## Preprocessor: Variables
+## Model: linear_reg()
+## 
+## ── Preprocessor ────────────────────────────────────────────────────────────────
+## Outcomes: distance
+## Predictors: c(Sex, age, Subject)
+## 
+## ── Model ───────────────────────────────────────────────────────────────────────
+## Linear mixed model fit by REML [&#39;lmerMod&#39;]
+## Formula: distance ~ Sex + (age | Subject)
+##    Data: data
+## REML criterion at convergence: 471.1635
+## Random effects:
+##  Groups   Name        Std.Dev. Corr 
+##  Subject  (Intercept) 7.3914        
+##           age         0.6943   -0.97
+##  Residual             1.3100        
+## Number of obs: 108, groups:  Subject, 27
+## Fixed Effects:
+## (Intercept)    SexFemale  
+##      24.517       -2.145</code></pre>
+</div>
+</div>
+<div id="creating-multiple-workflows-at-once" class="section level2">
+<h2>7.5 Creating Multiple Workflows at Once</h2>
+<p>The <strong>workflowset</strong> package creates combinations of
+workflow components. A list of preprocessors (e.g. formulas,
+<strong>dplyr</strong> selectors, or feature engineering recipe objected
+discussed in the next chapter) can be combined with a list of model
+specifications, resulting in a set of workflows.</p>
+<p>As an example, let’s say we want to focus on the different ways that
+house location is represented in the Ames data. We can create a set of
+formulas that capture these predictors:</p>
+<pre class="r"><code>location &lt;- list(
+  longitude = Sale_Price ~ Longitude,
+  latitude = Sale_Price ~ Latitiude,
+  coords = Sale_Price ~ Longitude + Latitude,
+  neighborhood = Sale_Price ~ Neighborhood
+)</code></pre>
+<p>These representations can be crossed with one or more models using
+the <code>workflow_set()</code> function. We’ll use the previous linear
+model specification to demonstrate:</p>
+<pre class="r"><code>location_models &lt;- workflow_set(preproc = location, models = list(lm = lm_model))
+location_models</code></pre>
+<pre><code>## # A workflow set/tibble: 4 × 4
+##   wflow_id        info             option    result    
+##   &lt;chr&gt;           &lt;list&gt;           &lt;list&gt;    &lt;list&gt;    
+## 1 longitude_lm    &lt;tibble [1 × 4]&gt; &lt;opts[0]&gt; &lt;list [0]&gt;
+## 2 latitude_lm     &lt;tibble [1 × 4]&gt; &lt;opts[0]&gt; &lt;list [0]&gt;
+## 3 coords_lm       &lt;tibble [1 × 4]&gt; &lt;opts[0]&gt; &lt;list [0]&gt;
+## 4 neighborhood_lm &lt;tibble [1 × 4]&gt; &lt;opts[0]&gt; &lt;list [0]&gt;</code></pre>
+<pre class="r"><code>location_models$info[1]</code></pre>
+<pre><code>## [[1]]
+## # A tibble: 1 × 4
+##   workflow   preproc model      comment
+##   &lt;list&gt;     &lt;chr&gt;   &lt;chr&gt;      &lt;chr&gt;  
+## 1 &lt;workflow&gt; formula linear_reg &quot;&quot;</code></pre>
+<pre class="r"><code>extract_workflow(location_models, id = &quot;coords_lm&quot;)</code></pre>
+<pre><code>## ══ Workflow ════════════════════════════════════════════════════════════════════
+## Preprocessor: Formula
+## Model: linear_reg()
+## 
+## ── Preprocessor ────────────────────────────────────────────────────────────────
+## Sale_Price ~ Longitude + Latitude
+## 
+## ── Model ───────────────────────────────────────────────────────────────────────
+## Linear Regression Model Specification (regression)
+## 
+## Computational engine: lm</code></pre>
+<p>Workflow sets are mostly designed to work with resampling, which is
+discussed in chapter 10. The columns <code>option</code> and
+<code>result</code> must be populated with specific types of objects
+that result from resampling. We will demonstrate this in more detail in
+chapters 11 and 15.</p>
+</div>
+<div id="evaluating-the-test-set" class="section level2">
+<h2>7.6 Evaluating the Test Set</h2>
+<pre class="r"><code>final_lm_res &lt;- last_fit(lm_workflow, ames_split)
+final_lm_res</code></pre>
+<pre><code>## # Resampling results
+## # Manual resampling 
+## # A tibble: 1 × 6
+##   splits             id               .metrics .notes   .predictions .workflow 
+##   &lt;list&gt;             &lt;chr&gt;            &lt;list&gt;   &lt;list&gt;   &lt;list&gt;       &lt;list&gt;    
+## 1 &lt;split [2342/588]&gt; train/test split &lt;tibble&gt; &lt;tibble&gt; &lt;tibble&gt;     &lt;workflow&gt;</code></pre>
+<p>The <code>.workflow</code> column contains the fitted workflow and
+can be pulled out of the results using:</p>
+<pre class="r"><code>fitted_lm_workflow &lt;- extract_workflow(final_lm_res)
+fitted_lm_workflow</code></pre>
+<pre><code>## ══ Workflow [trained] ══════════════════════════════════════════════════════════
+## Preprocessor: Variables
+## Model: linear_reg()
+## 
+## ── Preprocessor ────────────────────────────────────────────────────────────────
+## Outcomes: Sale_Price
+## Predictors: c(Longitude, Latitude)
+## 
+## ── Model ───────────────────────────────────────────────────────────────────────
+## 
+## Call:
+## stats::lm(formula = ..y ~ ., data = data)
+## 
+## Coefficients:
+## (Intercept)    Longitude     Latitude  
+##  -128056769      -807916      1250927</code></pre>
+<p>Similarly, <code>collect_metrics()</code> and
+<code>collect_predictions()</code> provide easy access to the
+performance metrics and predictions, respectively:</p>
+<pre class="r"><code>collect_metrics(final_lm_res)</code></pre>
+<pre><code>## # A tibble: 2 × 4
+##   .metric .estimator .estimate .config             
+##   &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt; &lt;chr&gt;               
+## 1 rmse    standard   75446.    Preprocessor1_Model1
+## 2 rsq     standard       0.164 Preprocessor1_Model1</code></pre>
+<pre class="r"><code>collect_predictions(final_lm_res)</code></pre>
+<pre><code>## # A tibble: 588 × 5
+##    id                 .pred  .row Sale_Price .config             
+##    &lt;chr&gt;              &lt;dbl&gt; &lt;int&gt;      &lt;int&gt; &lt;chr&gt;               
+##  1 train/test split 185437.     2     105000 Preprocessor1_Model1
+##  2 train/test split 181256.     4     244000 Preprocessor1_Model1
+##  3 train/test split 210794.     5     189900 Preprocessor1_Model1
+##  4 train/test split 206454.     8     191500 Preprocessor1_Model1
+##  5 train/test split 208769.    10     189000 Preprocessor1_Model1
+##  6 train/test split 207126.    13     180400 Preprocessor1_Model1
+##  7 train/test split 201215.    16     538000 Preprocessor1_Model1
+##  8 train/test split 200048.    18     394432 Preprocessor1_Model1
+##  9 train/test split 200890.    20     210000 Preprocessor1_Model1
+## 10 train/test split 190034.    30      96000 Preprocessor1_Model1
+## # … with 578 more rows</code></pre>
+</div>
+<div id="chapter-summary" class="section level2">
+<h2>7.7 Chapter Summary</h2>
+<p>In this chapter, you learned that the modeling process encompasses
+more than just estimating the parameters of an algorithm that connects
+predictors to an outcome. This process also includes pre-processing
+steps and operations taken after a model is fit. We introduced the
+concept called a <em>model workflow</em> that can capture the important
+components of the modeling process.Multiple workflows can also be
+created inside of a<em>workflow set</em>. The <code>last_fit ()</code>
+function is convenient for fitting a final model to the training set and
+evaluating with the test set.</p>
 </div>
 
 
