@@ -168,7 +168,7 @@ predict(object = lm_fit, new_data = ames_test %>% slice(1:3))
 
 ```
 
-If we need the bare model object or recipe, there rae `extract_*` functions that can retreive them:
+If we need the bare model object or recipe, there are `extract_*` functions that can retrieve them:
 
 ```{r Get the recipe after it has been estimated}
 
@@ -192,9 +192,9 @@ lm_fit %>%
 
 Data are passed to recipes at different stages.
 
-First, when calling `recipe(..., data)`, the data set is used to determine the data types of each column so taht selectors such as `all_muneric()` or `all_numeric_predictors()` can be used.
+First, when calling `recipe(..., data)`, the data set is used to determine the data types of each column so that selectors such as `all_muneric()` or `all_numeric_predictors()` can be used.
 
-Second, when preparing the data using `fit(workflow, data)`, the trainig data are used for all estimation operations including a recipe that may be part of the `workflow`, from determining factor levels to computing PCA components and everything in-between.
+Second, when preparing the data using `fit(workflow, data)`, the training data are used for all estimation operations including a recipe that may be part of the `workflow`, from determining factor levels to computing PCA components and everything in-between.
 
 Finally, when using `predict(workflow, new_data)`, no model or preprocessor parameters like those from recipes are re-estimated using the values in `new_data`.
 
@@ -204,9 +204,9 @@ Before proceeding, let's take an extended tour of the capabilities of **recipes*
 
 ### 8.4.1 Encoding Qualitative Data In A Numeric Format
 
-One of the most common feature engineering tasks is transforming nominal or qualitative data (factors or characters) so they can be encoded or represented numerically. Sometimes we can alter the factor levels of a qualitative column in helpful ways prior to such a transformation. For example, `step_unknown()` can be used to change missing values to a dedicated factor level. Similarly, if we anticipate that a new factor level may be encountered in future dta, `step_novel()` can allot a new level for this purpose.
+One of the most common feature engineering tasks is transforming nominal or qualitative data (factors or characters) so they can be encoded or represented numerically. Sometimes we can alter the factor levels of a qualitative column in helpful ways prior to such a transformation. For example, `step_unknown()` can be used to change missing values to a dedicated factor level. Similarly, if we anticipate that a new factor level may be encountered in future data, `step_novel()` can allot a new level for this purpose.
 
-Additionally, `step_other()` can be used to analyze the frequencies of the factor levels in the training set an dconvert infrequently occurring values to a catch-all level of "other", with a threshold that can be specified. A good example is the `Neighborhood` predictor in our data, shown in Figure 8.1: 
+Additionally, `step_other()` can be used to analyze the frequencies of the factor levels in the training set and convert infrequently occurring values to a catch-all level of "other", with a threshold that can be specified. A good example is the `Neighborhood` predictor in our data, shown in Figure 8.1: 
 
 ```{r barchart of neighborhoods in the Ames training set}
 
@@ -249,13 +249,13 @@ The full set of encodings can be used for some models. This is traditionally cal
 Recipes, by default, using_as a separator between name and level (e.g. `Neighborhood_Veenker`) and there is an option to use custom formatting for the names. The default naming convention in **recipes** makes it easier to capture those new columns in future steps using a selector, such as `starts_with("Neighborhood_")`
 
 * *Feature hashing* methods only consider the value of the category to assign it to a predefined pool of dummy variables.
-* *Effect* or *liklihood encodings* replace the original data with a single numeric column that measures the *effect* of those data.
+* *Effect* or *likelihood encodings* replace the original data with a single numeric column that measures the *effect* of those data.
 
-Both feature hashing and effect encoding can seamlessly handle situations where a novel factor level is encountered in the data. Chapter 17 explores these and other methods for encoding categorical data, beyond straightfoward dummy or indicator variables.
+Both feature hashing and effect encoding can seamlessly handle situations where a novel factor level is encountered in the data. Chapter 17 explores these and other methods for encoding categorical data, beyond straightforward dummy or indicator variables.
 
 ### 8.4.2 Interaction terms
 
-Numerically, an interaction term between predicotrs is encoded as their product. Interactions are devined in terms of their effect on the outcome and can be combinations of different types of data (e.g. numeric, categorical, etc).
+Numerically, an interaction term between predictors is encoded as their product. Interactions are derived in terms of their effect on the outcome and can be combinations of different types of data (e.g. numeric, categorical, etc).
 
 After exploring the Ames training set, we might find that the regression slopes for the gross living area differ for different building types, as shown in Figure 8.2
 
@@ -271,7 +271,7 @@ ggplot(ames_train, aes(x = Gr_Liv_Area, y = 10^Sale_Price)) +
 
 ```
 
-Recipes are mor explicit and sequential (than traditional formula methods) and they give you more control. With the current recipe, `step_dummy()` has already created dummy variables. How would we combine these for an interaction? The additional step would look like `step_interact(~ interaction terms)` swhere the terms on the right-hand side of the tilde are the interactions. These can include selectors, so it would be approrirate to use:
+Recipes are more explicit and sequential (than traditional formula methods) and they give you more control. With the current recipe, `step_dummy()` has already created dummy variables. How would we combine these for an interaction? The additional step would look like `step_interact(~ interaction terms)` where the terms on the right-hand side of the tilde are the interactions. These can include selectors, so it would be appropriate to use:
 
 ```{r Example of interaction terms}
 
@@ -340,7 +340,7 @@ plot_smoother <- function(deg_free){
 (plot_smoother(2) + plot_smoother(5)) / (plot_smoother(20) + plot_smoother(100))
 ```
 
-The `ns()` funciton in the **splines** package generates feature columns using functions called *natural splines.*
+The `ns()` function in the **splines** package generates feature columns using functions called *natural splines.*
 
 Some panels in figure 8. Three clearly fit poorly; two terms *underfit* the data while 100 terms *overfit*. The panels with five and 20 terms seem like reasonably smooth fits that catch the main patterns of the data. This indicates that the proper amount of "nonlinear–ness" matters. The number of spline terms could be considered a *tuning parameter* for this model. These types of parameters are explored in chapter 12.
 
@@ -356,4 +356,30 @@ recipe(Sale_Price ~ Neighborhood + Gr_Liv_Area + Year_Built + Bldg_Type + Latitu
   step_ns(Latitude, deg_free = 20)
 
 ```
+
+### 8.4.4 Feature Extraction
+
+Another common method for representing multiple features is called*feature extraction*. Most of these techniques create new features from the predictors that capture the information in the broader set as a whole. For example, principal components analysis (PCA) tries to capture as much of the original information in the predictor set as possible using a smaller number of features. PCA is a linear extraction method, meaning that each new feature is a linear combination of the original predictors. One nice aspect of PCA is that each of the new features, called the principal components or PCA scores, are uncorrelated with one another. Because of this, PCA can be very effective at reducing the correlation between predictors. Note that PCA is only aware of the predictors; the new PCA features might not be associated with the outcome.
+
+There are existing recipe steps for other extraction methods, such as: Independent component analysis (ICA), non-negative matrix factorization(NNMF), multidimensional scaling (MDS), uniform manifold approximation and projection (UMAP) and others.
+
+### 8.4.5 Row Sampling Sets
+
+Recipe steps can affect the rose of a data set as well. For example, *subsampling* techniques for class and balances changes the class proportions in the data being given to the model; these techniques often don't improve overall performance but can generate better behaved distributions of the predicted class probabilities. These are approaches to try one subsampling your data with class and balance:
+
+**Down sampling*the data keeps the minority class and takes a random sample of the majority class so that class frequencies are balanced.
+
+**Up sampling*replicates samples from the minority class to balance the classes. Some techniques do this by synthesizing new samples that resemble the minored class data while other methods simply add the same minority samples repeatedly.
+
+* *Hybrid methods* Do a combination of both.
+
+The**famous**package as recipe steps that can be used to address classic balance via subsampling. For simple down sampling we would use:
+
+```{r How to use downsampling}
+
+# step_downsample(outcome_column_name)
+
+```
+
+Other step functions are row-based as well: `step_filter()`, `step_sample()`, `step_slice()`, and `step_arrange()`. In almost all uses of these steps, the `skip` argument should be set to `TRUE`.
 
