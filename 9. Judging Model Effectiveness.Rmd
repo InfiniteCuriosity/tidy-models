@@ -74,4 +74,62 @@ For a model used primarily for prediction, by contrast, predictive strength is o
 
 Using resampling methods, discussed in chapter 10, we can estimate the accuracy of this model to be about 72.7%. **Accuracy is often a poor measure of model performance**; we use it here because it is commonly understood.
 
-In the remainder of the chapter, we will discuss general approaches for evaluating models by empirical validation. These approaches are grouped by the nature of the outcome data: purely numeric, binary classes, and three or more levels
+In the remainder of the chapter, we will discuss general approaches for evaluating models by empirical validation. These approaches are grouped by the nature of the outcome data: purely numeric, binary classes, and three or more class levels.
+
+## 9.2 Regression Metrics
+
+To illustrate regression metrics, let's check the model from section 8.8. This model `lm_workflow_fit` combines a linear regression model with a predictor set supplemented with an interaction and spline functions for longitude and latitude. It was created from a training set (named `Ames_train`). Although we do not advise using the test site at this juncture of the modeling process, it will be used here to illustrate functionality and syntax. The data frame `Ames_test` consists of 588 properties. To start, let's produce predictions:
+
+```{r Produce predictions (not recommended to use the test set at this step of the analysis)}
+
+ames_test_res <- predict(lm_fit, new_data = ames_test %>%  select(-Sale_Price))
+ames_test_res
+
+```
+
+The predicted numeric outcome from the regression model is names `.pred`. Let's match the predicted values iwth their corresponding observed outcome values:
+
+```{r Match observed vs predicted outcome values}
+
+ames_test_res <- bind_cols(ames_test_res, ames_test %>% select(Sale_Price))
+ames_test_res
+
+```
+
+We see that these values mostly look close, but we don't yet have a quantitative understanding of how the model is doing because we haven't computed any performance metrics. Note that both the predicted and observed outcomes are in log-10 units. It is best practice to analyze the predictions on the transformed scale (if one were used) even if the predictions are reported using original units.
+
+Let's plot the data in figure 9.2 before computing metrics:
+
+```{r Plotting predicted vs actual sale price of the log of the data}
+
+ggplot(ames_test_res, aes(x = Sale_Price, y = .pred)) +
+  # Create a diagonal line
+  geom_abline(lty = 2) +
+  geom_point(alpha = 0.5) +
+  labs(y = "Predicted Sale Price (log10)", x = "Sale Price (log10)") +
+  # Scale and size the x- and y- axes uniformly:
+  coord_obs_pred()
+
+```
+
+Let's compute the root mean squared error for this model using the `rmse()` function:
+
+```{r Calculate the root mean squared error for this function}
+
+rmse(ames_test_res, truth = Sale_Price, estimate = .pred)
+
+```
+
+This shows us the standard format of the output of **yardstick** functions. Metrics for numeric outcomes usually have a "standard" for the `.estimator` column. Examples with different values for this column are shown in the next sections.
+
+To compute multiple metrics at once, we can create a *metric set*. Let's add $R^2$ and the mean absolute error:
+
+```{r Create a metric set}
+
+ames_metrics <- metric_set(rmse, rsq, mae)
+ames_metrics(ames_test_res, truth = Sale_Price, estimate = .pred)
+
+```
+
+This tidy data format stacks the metrics vertically. The route means squared error and mean absolute air metrics are both on the scale of the outcome (so back tick back tick for our example) and measure the difference between the predicted and observed values. The value for $R^2$ Measures the squared correlation between the predicted and observed values, so values closer to one are better.
+
