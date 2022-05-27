@@ -1,0 +1,153 @@
+---
+title: "10. Resampling for Evaluating Performance"
+author: "Russ Conte"
+date: '2022-05-27'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Start by loading the required packages in two lines of code:
+
+```{r Load all required packages in two lines of code}
+
+Packages <- c("tidymodels", "caret", "multilevelmod", "lme4", "VCA", "survival", "patchwork", "splines", "ranger")
+lapply(Packages, library, character = TRUE)
+
+tidymodels_prefer(quiet = FALSE)
+
+```
+
+Start with code for multi-core processing
+
+```{r multi-core processing}
+
+library(doParallel)
+cl <- makePSOCKcluster(10)
+registerDoParallel(cl)
+
+```
+
+```{r Code for this chapter, from previous chapters}
+
+library(tidymodels)
+data(ames)
+ames <- mutate(ames, Sale_Price = log10(Sale_Price))
+
+set.seed(502)
+ames_split <- initial_split(ames, prop = 0.80, strata = Sale_Price)
+ames_train <- training(ames_split)
+ames_test  <-  testing(ames_split)
+
+ames_rec <- 
+  recipe(Sale_Price ~ Neighborhood + Gr_Liv_Area + Year_Built + Bldg_Type + 
+           Latitude + Longitude, data = ames_train) %>%
+  step_log(Gr_Liv_Area, base = 10) %>% 
+  step_other(Neighborhood, threshold = 0.01) %>% 
+  step_dummy(all_nominal_predictors()) %>% 
+  step_interact( ~ Gr_Liv_Area:starts_with("Bldg_Type_") ) %>% 
+  step_ns(Latitude, Longitude, deg_free = 20)
+  
+lm_model <- linear_reg() %>% set_engine("lm")
+
+lm_workflow <- 
+  workflow() %>% 
+  add_model(lm_model) %>% 
+  add_recipe(ames_rec)
+
+lm_fit <- fit(lm_workflow, ames_train)
+
+```
+
+## 10.1 The Resubstitution Approach
+
+One way measure performance on the same data that we used for training (as opposed to new data or testing data), we say we have *resubstituted* the data. Let's again use the Ames housing data to demonstrate these concepts. Section 8.8 summarizes the current state of our aims analysis. It includes a recipe object named `Ames_rec`,a linear model, and a workflow using that recipe called `lm_workflow`. This workflow was fit on the training set, resulting in `lm_fit`.
+
+For a comparison to this linear model, we can also fit a different type of model.*Random forests* are a tree ensemble method that operates by creating a large number of decision trees from slightly different versions of the training set. This collection of trees makes up the ensemble. When predicting a new sample, each ensemble member makes a separate prediction. These are averaged to create the final on summer prediction for the new data point.
+
+Random forest models are very powerful, and they can emulate the underlying data patterns very closely. While this model can be computationally intensive, it is very low maintenance; very little pre-processing as required (as documented in appendix A).
+
+Using the same predictor set as the linear model (without the extra preprocessing steps), we can fit a random forest model to the training set via the `"ranger"` engine (which uses the **ranger** R package for computation. This model requires no pre-processing, so so a simple formula can be used:
+
+```{r Random Forest model with the Ames data set}
+
+rf_model <- 
+  rand_forest(trees = 1000) %>% 
+  set_engine("ranger") %>% 
+  set_mode("regression")
+
+rf_workflow <- 
+  workflow() %>% 
+  add_formula(
+    Sale_Price ~ Neighborhood + Gr_Liv_Area + Year_Built + Bldg_Type + Latitude + Longitude) %>% 
+  add_model(rf_model)
+
+rf_fit <- rf_workflow %>% fit(data = ames_train)
+
+rf_fit
+```
+
+How should we compare the linear and random forest models? For demonstration, we will predict the training set to produce what is known as an *apparent metric* or *resubstitution metric*. This function creates predictions and formats the results:
+
+```{r Creating an apparent metric or resubstitution metric}
+
+estimate_perf <- function(model, dat){
+  # Capture the names of the `model` and `dat` objects
+  cl <- match.call()
+  obj_name <- as.character(cl$model)
+  data_name <- as.character(cl$dat)
+  data_name <- gsub("ames_", "", data_name)
+  
+  # Estimate the metrics:
+  reg_metrics <- metric_set(rmse, rsq)
+  
+  model %>% 
+    predict(dat) %>% 
+    bind_cols(dat %>% select(Sale_Price)) %>% 
+    reg_metrics(Sale_Price, .pred) %>% 
+    select(-.estimator) %>% 
+    mutate(object = obj_name, data = data_name)
+  }
+
+```
+
+Both RMSE and $R^2$ are computed. The resubstituion statistics are:
+
+```{r RMSE and resubstitution metrics for the random forest model of the Ames data set}
+
+estimate_perf(rf_fit, ames_train)
+
+estimate_perf(lm_fit, ames_train)
+```
+
+Based on these results, the random forest is much more capable of predicting the sales prices, the RMSE estimate is two fold better than linear regression. If we needed to choose between these two models for this price prediction problem, we will probably choose the random forest, on a log scale we are using, it's RMSE is about half as large. The next step applies the random forest model to the test set for final verification:
+
+```{r apply random forest model to the test set}
+
+estimate_perf(rf_fit, ames_test)
+
+```
+
+The test RMSE estimate, 0.0704, is *much worse than the training set* value of 0.0365! Why did this happen?
+
+Many predictive models are capable of learning complex trends from the data. In statistics, these re commonly referred to as *low bias models.*
+
+In this context, *bias* is the difference between the true pattern or relationship in data and the types of patterns that the model can emulate. Many black-box machine learning models have low bias, meaning they can reproduce complex relationships. Other models (such as linear/logistic regression, discriminant analysis, and others) are not as adaptable and are considered *high bias* models.
+
+For a low bias model, the high degree of predictive capacity can sometimes result in the model nearly memorizing the training set data. Random forests are one example where this can happen. repredicting the training set will **always** result in an artificially optimistic estimate of model performance.
+
+For both models, table 10.1 summarizes the RMSE estimate for the training and test sets:
+
+|Table 10.1: Performance statistics for training and test sets|
+||||
+||**RMSE**|**Estimates**|
+|**object**|**train**|**test**|
+|lm_fit|0.0754|0.0736|
+|rf_fit|0.0365|0.0704|
+---
+
+The main takeaway from this example is that repredicting the training set will result in an artificially optimistic estimate of performance. It is a bad idea for most models.
+
+If the test set should not be used immediately, and repredicting the training set is a bd idea, what should be done? Resampling methods, such as cross-validation or validation sets, are the solution.
