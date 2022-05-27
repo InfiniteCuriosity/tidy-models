@@ -13,7 +13,7 @@ Start by loading the required packages in two lines of code:
 
 ```{r Load all required packages in two lines of code}
 
-Packages <- c("tidymodels", "caret", "multilevelmod", "lme4", "VCA", "survival")
+Packages <- c("tidymodels", "caret", "multilevelmod", "lme4", "VCA", "survival", "patchwork", "splines")
 lapply(Packages, library, character = TRUE)
 
 tidymodels_prefer(quiet = FALSE)
@@ -152,7 +152,7 @@ lm_workflow
 ```
 
 
-LKet's estimate both the recipe and model using a simple call to `fit()`:
+Let's estimate both the recipe and model using a simple call to `fit()`:
 
 ```{r Estimate both the recipe and model using a simple call to fit()}
 
@@ -227,6 +227,133 @@ simple_ames <-
   step_log(Gr_Liv_Area, base = 10) %>% 
   step_other(Neighborhood, threshold = 0.01) %>% 
   step_dummy(all_nominal_predictors())
+
+```
+
+The most common method for converting a factor predictor to a numeric format is to create dummy or indicator variables. Let's take the predictor in the Ames data for the building type, which is a factor variable with five levels (see table 8.1). For dummy variables, the single ` Bldg_Type` column would be replaced with four numeric columns whose values are either zero or one. These binary variables represent specific factor levels values. In R, the convention is to exclude a column for the first factor level (`OneFam`, in this case). The `Bldg_Type` column would be replaced with a column called `TwoFmCon` that is one when the row has that value, and zero otherwise. Three other columns are similarly created:
+
+<center>Table 8.1: Illustration of binary encodings (i.e. dummy variables) for a qualitative predictors</center>
+
+||
+|:--|:--|:--|:--|:--|
+|**Raw Data**|**TwoFmCon**|**Duplex**|**Twnhs**|**TwnhsE**|
+|OneFam|0|0|0|0|
+|TwoFmCon|1|0|0|0|
+|Duplex|0|1|0|0|
+|Twnhs|0|0|1|0|
+|TwnhsE|0|0|0|1|
+---
+
+The full set of encodings can be used for some models. This is traditionally called one-hot encoding and can be achieved using the `one_hot` argument of `step_dummy()`.
+
+Recipes, by default, using_as a separator between name and level (e.g. `Neighborhood_Veenker`) and there is an option to use custom formatting for the names. The default naming convention in **recipes** makes it easier to capture those new columns in future steps using a selector, such as `starts_with("Neighborhood_")`
+
+* *Feature hashing* methods only consider the value of the category to assign it to a predefined pool of dummy variables.
+* *Effect* or *liklihood encodings* replace the original data with a single numeric column that measures the *effect* of those data.
+
+Both feature hashing and effect encoding can seamlessly handle situations where a novel factor level is encountered in the data. Chapter 17 explores these and other methods for encoding categorical data, beyond straightfoward dummy or indicator variables.
+
+### 8.4.2 Interaction terms
+
+Numerically, an interaction term between predicotrs is encoded as their product. Interactions are devined in terms of their effect on the outcome and can be combinations of different types of data (e.g. numeric, categorical, etc).
+
+After exploring the Ames training set, we might find that the regression slopes for the gross living area differ for different building types, as shown in Figure 8.2
+
+```{r Regression lines of Sale Price vs building type in the Ames data set}
+
+ggplot(ames_train, aes(x = Gr_Liv_Area, y = 10^Sale_Price)) +
+  geom_point(alpha = 0.2) +
+  facet_wrap(~Bldg_Type) +
+  geom_smooth(method = lm, formula = y ~ x, se = FALSE, color = "lightblue") +
+  scale_x_log10() +
+  scale_y_log10() +
+  labs(x = "Gross Living Area", y = "Sale Price (USD)")
+
+```
+
+Recipes are mor explicit and sequential (than traditional formula methods) and they give you more control. With the current recipe, `step_dummy()` has already created dummy variables. How would we combine these for an interaction? The additional step would look like `step_interact(~ interaction terms)` swhere the terms on the right-hand side of the tilde are the interactions. These can include selectors, so it would be approrirate to use:
+
+```{r Example of interaction terms}
+
+simple_ames <- 
+  recipe(Sale_Price ~ Neighborhood + Gr_Liv_Area + Year_Built + Bldg_Type, data = ames_train) %>% 
+  step_log(Gr_Liv_area, base= 10) %>% 
+  step_other(Neighborhood, threshold = 0.01) %>% 
+  step_dummy(all_nominal_predictors()) %>% 
+  step_interact( ~ Gr_Liv_area:starts_with("Bldg_Type_") )
+
+tidy(simple_ames) # to see the steps in the recipe
+
+lm_fit %>% 
+  extract_fit_parsnip() %>% 
+  tidy()
+
+```
+
+To see the steps in the recipe:
+
+```{r To see the steps in the recipe}
+
+tidy(simple_ames)
+
+```
+
+To see the underlying model:
+
+```{r to see the underlying model}
+
+lm_fit %>% 
+  extract_fit_parsnip() %>% 
+  tidy()
+
+```
+
+
+Additional interactions can be specified in this formula by separating them with `+`.
+
+As with naming dummy variables, **recipes** provides more coherent names for interaction terms.In this case, the interaction is named `Gr_Liv_Area_x_Bldg_Type_Duplex` instead of `Gr_Liv_area:Bldg_TypeDuplex` (which is not a valid column name for a data frame).
+
+*Remember that order matters.* The Gross Living Wage is log transformed prior to the interaction term. Subsequent interactions with this variable will also use the log scale.
+
+### 8.4.3 Spline Functions
+
+One common method for fitting a data set is to use *spline* functions to represent the data. Splines replace the existing predictor with a set of columns that allow a model to emulate a flexible, nonlinear relationship.As more spline terms are added to the data, the capacity to nonlinearly represent the relationship increases. Unfortunately, it may also increase the likelihood of picking up on data trends that occur by chance (i.e., overfitting).
+
+If you have ever used `geom_smooth()` within a `ggplot`, we have probably used a spline representation of the data. For example, each panel in figure 8.3 uses a different number of smooth lines for the latitude predictor.
+
+```{r Examples of splines}
+
+plot_smoother <- function(deg_free){
+  ggplot(ames_train, aes(x = Latitude, y = 10^Sale_Price)) +
+    geom_point(alpha = 0.2) +
+    scale_y_log10() +
+    geom_smooth(
+      method = lm,
+      formula = y ~ ns(x, df = deg_free),
+      color = "lightblue",
+      se = FALSE
+    ) +
+    labs(title = paste(deg_free, "Spline Terms"),
+         y = "Sale Price (USD)")
+}
+
+(plot_smoother(2) + plot_smoother(5)) / (plot_smoother(20) + plot_smoother(100))
+```
+
+The `ns()` funciton in the **splines** package generates feature columns using functions called *natural splines.*
+
+Some panels in figure 8. Three clearly fit poorly; two terms *underfit* the data while 100 terms *overfit*. The panels with five and 20 terms seem like reasonably smooth fits that catch the main patterns of the data. This indicates that the proper amount of "nonlinear–ness" matters. The number of spline terms could be considered a *tuning parameter* for this model. These types of parameters are explored in chapter 12.
+
+In **recipes** multiple steps can create these types of terms. To add a natural spline representation for this predictor:
+
+```{r Adding a natural spline for the sale price predictor}
+
+recipe(Sale_Price ~ Neighborhood + Gr_Liv_Area + Year_Built + Bldg_Type + Latitude, data = ames_train) %>% 
+  step_log(Gr_Liv_area, base = 10) %>% 
+  step_other(Neighborhood, threshold = 0.01) %>% 
+  step_dummy(all_nominal_predictors()) %>% 
+  step_interact( ~ Gr_Liv_area:starts_with("Bldg_type_") ) %>% 
+  step_ns(Latitude, deg_free = 20)
 
 ```
 
