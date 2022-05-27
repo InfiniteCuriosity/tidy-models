@@ -1,0 +1,77 @@
+---
+title: "9. Judging Model Effectiveness"
+author: "Russ Conte"
+date: '2022-05-27'
+output: html_document
+---
+# Judging Model Effectiveness
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Start by loading the required packages in two lines of code:
+
+```{r Load all required packages in two lines of code}
+
+Packages <- c("tidymodels", "caret", "multilevelmod", "lme4", "VCA", "survival", "patchwork", "splines")
+lapply(Packages, library, character = TRUE)
+
+tidymodels_prefer(quiet = FALSE)
+
+```
+
+Start with code for multi-core processing
+
+```{r multi-core processing}
+
+library(doParallel)
+cl <- makePSOCKcluster(10)
+registerDoParallel(cl)
+
+```
+
+```{r Code for this chapter, from previous chapters}
+
+library(tidymodels)
+data(ames)
+ames <- mutate(ames, Sale_Price = log10(Sale_Price))
+
+set.seed(502)
+ames_split <- initial_split(ames, prop = 0.80, strata = Sale_Price)
+ames_train <- training(ames_split)
+ames_test  <-  testing(ames_split)
+
+ames_rec <- 
+  recipe(Sale_Price ~ Neighborhood + Gr_Liv_Area + Year_Built + Bldg_Type + 
+           Latitude + Longitude, data = ames_train) %>%
+  step_log(Gr_Liv_Area, base = 10) %>% 
+  step_other(Neighborhood, threshold = 0.01) %>% 
+  step_dummy(all_nominal_predictors()) %>% 
+  step_interact( ~ Gr_Liv_Area:starts_with("Bldg_Type_") ) %>% 
+  step_ns(Latitude, Longitude, deg_free = 20)
+  
+lm_model <- linear_reg() %>% set_engine("lm")
+
+lm_workflow <- 
+  workflow() %>% 
+  add_model(lm_model) %>% 
+  add_recipe(ames_rec)
+
+lm_fit <- fit(lm_workflow, ames_train)
+
+```
+
+Once we have a model, we need to know how well it works. A quantitative approach for estimating effectiveness allows us to understand the model, to compare different models, or to tweak the model to improve performance. Our focus in tidy models is an empirical validation; this usually means using data that were not used to create the model as the substrate to measure effectiveness.
+
+The best approach to empirical validation involves using *resampling* methods that will be introduced in chapter 10. In this chapter, we motivate the need for empirical validation by using the test set. Keep in mind that the tests that can only be used once, is explained in section 5.1.
+
+## 9.1 Performance Metrics and Inference
+
+The effectiveness of any given model depends on how the model will be used. An inferential model is used primarily to understand relationships, and typically emphasizes the choice (and validity) of probabilistic distributions and other generative qualities that define the model.
+
+For a model used primarily for prediction, by contrast, predictive strength is of primary importance and other concerns about underlying statistical qualities may be less important. Predictive strength is usually determined by how close our predictions come to the observed data, i.e. fidelity of the model predictions to the actual results. This chapter focuses on functions that can be used to measure predictive strength. However, our advice for those developing inferential models is to use these techniques even when the model will not be used with the primary goal of prediction.
+
+Using resampling methods, discussed in chapter 10, we can estimate the accuracy of this model to be about 72.7%. **Accuracy is often a poor measure of model performance**; we use it here because it is commonly understood.
+
+In the remainder of the chapter, we will discuss general approaches for evaluating models by empirical validation. These approaches are grouped by the nature of the outcome data: purely numeric, binary classes, and three or more levels
