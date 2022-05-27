@@ -220,3 +220,92 @@ autoplot(two_class_curve)
 If the curve was close to the diagonal line, then the models predictions would be no better than random guessing. Since the curve is in the top, left – hand corner, we see that our model performs well at different thresholds.
 
 There are a number of other functions that use probability estimates, including `gain_curve()`, `lift_curve()`, and `pr_curve()`
+
+## 9.4 Multiclass Classification Metrics
+
+What about data with three or more classes? To demonstrate, let's explore a different example data set that has four classes:
+
+```{r Looking at a data set with four classes}
+
+data("hpc_cv")
+tibble(hpc_cv)
+
+```
+
+```{r look at the mean of the numeric columns}
+
+hpc_cv %>% 
+  select(where(is.numeric)) %>% 
+  map_dbl(mean)
+
+```
+
+The functions for metrics that use the discrete class predictions are identical to their binary counterparts:
+
+```{r Metrics for discrete class predictions}
+
+accuracy(hpc_cv, obs, pred)
+
+mcc(hpc_cv, obs, pred)
+
+```
+
+There are wrapper methods that can be used to apply sensitivity, the true positive rate, to our for class outcome. These options are macro-averaging, macro-weighted average in, and micro-averaging:
+
+* Macro-averaging computes a set of one-versus-all metrics using the standard to class statistics. These are averaged.
+
+* Macro – waited averaging does the same but the average is waited by the number of samples in each class
+
+* Micro – averaging computes the contribution for each class, aggregates them, then compute a single metric from the aggregates.
+
+**yardstick** can automatically apply these methods via the `estimator` argument:
+
+```{r Using yardstick to automatically apply metrics to the data set}
+
+sens(hpc_cv, obs, pred, estimator = "macro")
+
+sens(hpc_cv, obs, pred, estimator = "macro_weighted")
+
+sens(hpc_cv, obs, pred, estimator = "micro")
+
+
+
+```
+
+Note - there is another typo in the text, the function is `sens`, but the book has it as `sensitivity`.
+
+```{r all of the metrics can be computed using **dplyr** groupings}
+
+hpc_cv %>% 
+  group_by(Resample) %>% 
+  accuracy(obs, pred)
+
+```
+
+The groupings also translate to the `autoplot()` methods with results shown in figure 9.4:
+
+```{r Using the autoplot function}
+
+hpc_cv %>% 
+  group_by(Resample) %>% 
+  roc_curve(obs, VF, F, M, L) %>% 
+  autoplot()
+
+```
+
+This visualization shows us that the different groups all perform about the same, but that the `VF` class is predicted better than th `F` or `M` classes, since the `VF` ROC curves are more in the top-left corner. This example uses resamples as the groups, but any grouping in your data can be used. This `autoplot()` method can be a quick visualization method for model effectiveness across outcome classes and/or groups.
+
+## 9.5 Chapter Summary
+
+Different metrics measure different aspects of a model fit, RMSE measures accuracy, while the $R^2$ Measures correlation. Measuring model performance is important even when a given model will not be used primarily for production; predictive power is also important for inferential or descriptive models.
+
+Functions from the**yardstick**package special the effectiveness of a model using data. The prime tidy model interface uses tidy verse principles and data frames (as supposed to having vector arguments). Different metrics are appropriate for regression and classification metrics and, within these, there are sometimes different ways to estimate the statistics, such as for multi class outcomes.
+
+REFERENCES
+
+Craig–Schapiro, R, M Kuhn, C Xiong, E Pickering, J Liu, T Misko, R Perrin, et al. 2011. “Multiplexed Immunoassay Panel Identifies Novel CSF Biomarkers for Alzheimer’s Disease Diagnosis and Prognosis.” PLoS ONE 6 (4): e18850.
+Hand, D, and R Till. 2001. “A Simple Generalisation of the Area Under the ROC Curve for Multiple Class Classification Problems.” Machine Learning 45 (August): 171–86.
+Hosmer, D, and Sy Lemeshow. 2000. Applied Logistic Regression. New York: John Wiley; Sons.
+Jungsu, K, D Basak, and D Holtzman. 2009. “The Role of Apolipoprotein E in Alzheimer’s Disease.” Neuron 63 (3): 287–303.
+Opitz, J, and S Burst. 2019. “Macro F1 and Macro F1.” https://arxiv.org/abs/1911.03347.
+Wu, X, and Z Zhou. 2017. “A Unified View of Multi-Label Performance Measures.” In International Conference on Machine Learning, 3780–88.
