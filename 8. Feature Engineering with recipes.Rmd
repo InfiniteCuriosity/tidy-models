@@ -387,3 +387,111 @@ Other step functions are row-based as well: `step_filter()`, `step_sample()`, `s
 
 Recipes can also handle data that are not in the traditional structure where the columns are features. For example, the **textrecipes** package can apply natural language processing methods to the data. The input column is typically a string of text, and different steps can be used to tokenize the data (e.g. split the text into separate words), filter out tokens, and create new features appropriate for modeling.
 
+## 8.5 Skipping Steps for New Data
+
+At the time of this writing, the step functions in the recipes and themis packages that are only applied to the training data are: `step_adasyn()`, `step_bsmote()`, `step_downsample()`, `step_filter()`, `step_nearmiss()`, `step_rose()`, `step_sample()`, `step_slice()`, `step_smote()`, `step_smotenc()`, `step_tomek()`, and `step_upsample()`.
+
+8.6 Tidy A `recipe()`
+
+In section 3.3 we introduced the `tidy ()` verb for statistical objects. There is also a `tidy ()` method for recipes, as well as individual recipe steps. Before proceeding, let's create an extended recipe for the Ames data using some of the new steps we discussed in this chapter:
+
+```{r Recipe example using many of the steps in this chapter}
+
+ames_rec <- 
+  recipe(Sale_Price ~ Neighborhood + Gr_Liv_Area + Year_Built + Bldg_Type + Latitude + Longitude, data = ames_train) %>% 
+  step_log(Gr_Liv_Area, base = 10) %>% 
+  step_other(Neighborhood, threshold = 0.01) %>% 
+  step_dummy(all_nominal_predictors()) %>% 
+  step_interact( ~ Gr_Liv_Aera:starts_with("Bldg_Type_")) %>% 
+  step_ns(Latitude, Longitude, deg_free = 20)
+
+```
+
+The `tidy()` method, when called with the recipe object, gives a summary of the recipe steps:
+
+```{r Applying the tidy method to the recipe}
+
+tidy(ames_rec)
+
+```
+
+This result can be helpful for identifying individual steps, perhaps to then be able to execute the `tidy()` method on one specific step. (typo in original text)
+
+We can specify the `id` argument in any step function call; otherwise it is generated using a random suffix. Setting this value can be helpful if the same type of step is added to the recipe more than once. Let's specify the `id` ahead of time for `step_other()`, since we'll want to `tidy()` it:
+
+```{r Specify the ID argument in a step function call}
+
+ames_rec <- 
+  recipe(Sale_Price ~ Neighborhood + Gr_Liv_Area + Year_Built + Bldg_Type + Latitude + Longitude, data = ames_train) %>% 
+  step_log(Gr_Liv_Area, base = 10) %>% 
+  step_other(Neighborhood, threshold = 0.01, id = "my_id") %>% 
+  step_dummy(all_nominal_predictors()) %>% 
+  step_interact( ~ Gr_Liv_Area:starts_with("Bldg_Type_")) %>% 
+  step_ns(Latitude, Longitude, deg_free = 20)
+
+```
+
+We'll refit the workflow with this new recipe:
+
+```{r Refit the workflow with the new recipe}
+
+lm_workflow <- 
+  workflow() %>% 
+  add_model(lm_model) %>% 
+  add_recipe(ames_rec)
+
+lm_fit <- fit(lm_workflow, ames_train)
+
+lm_fit %>% 
+  tidy()
+
+```
+
+The `tidy()` method can be called again along with the `id` identifier we specified to get our results for applying `step_other()`
+
+```{r Applying the tidy method along with the id identifier}
+
+estimated_recipe <- 
+  lm_fit %>% 
+  extract_recipe(estimated = TRUE)
+
+tidy(estimated_recipe, id = "my_id")
+
+```
+
+The `tidy()` results we see here for using `step_other()` show which factor levels were retained, i.e. not added to the new "other" category.
+
+The `tidy()` method can be called with the `number` identifier as well, if we know which step in the recipe we need:
+
+```{r Using the tidy method with the number identifier}
+
+tidy(estimated_recipe, number = 2)
+
+```
+
+The`tidy()` method returns the relevant information about that step. For example, the `tidy()` method for `step_dummy ()` returns a column with the variables that were converted to dummy variables in another column with all of the known levels for each column.
+
+```{r}
+
+tidy(step_dummy(recipe = estimated_recipe))
+```
+
+## 8.7 Column Roles
+
+When a formula is used with the initial call to `recipe()` it assigns *roles* to each of the columns, depending on which side of the tilde they are on. Those roles are either `"predictor"` or `"outcome"`. However, other roles can be assigned as needed.
+
+For example, in our Ames data set, they original data contained a column for address. It may be useful to keep that column in the data so that, after predictions are made, problematic results can be investigated in detail. In other words, the column could be important even when it isn't a predictor or outcome.
+
+To solve this, the `add_role()`, `remove_role()`, and `update_role()` function can be helpful. For example for the house price data, the role of the street address column could be modified as:
+
+```{r The role of the street address can be modified using}
+
+#ames_rec %>% update_role(address, new_role = "street address")
+
+```
+
+**8.8 chapter summary
+
+In this chapter, you learned about using**recipes** for flexible Feature engineering and data processing, from creating dummy variables to handle in class and balances and more. Feature engineering is an important part of the modeling process where information leakage can easily occur and good practices must be adopted.Between the**recipes**package and other packages that extend recipes, there are over 100 available steps. All possible recipe steps are enumerated at <tidymodels.org/find>. Between the**recipes**package and other packages that extend recipes, there are over 100 available steps. All possible recipe steps are enumerated at <tidymodels.org/find>. The**recipes**framework provides a rich data manipulation environment for pre-processing and transforming data prior to modeling. Additionally, <tidymodels.org/learn/develop/recipes/> shows how custom steps can be created.
+
+Our work here has used recipes solely inside of a workflow object. From modeling, that is the recommended use because featuring engineering should be estimated together with a model. However, for visualization and other activities, a workflow may not be appropriate; more recipe-specific functions may be required. Chapter 16 discusses lower-level APIs for feeding, using, and troubleshooting recipes.
