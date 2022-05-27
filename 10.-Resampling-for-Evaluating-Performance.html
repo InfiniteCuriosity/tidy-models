@@ -388,7 +388,7 @@ lapply(Packages, library, character = TRUE)</code></pre>
 ## ✖ dplyr::filter()  masks stats::filter()
 ## ✖ dplyr::lag()     masks stats::lag()
 ## ✖ recipes::step()  masks stats::step()
-## • Use tidymodels_prefer() to resolve common conflicts.</code></pre>
+## • Dig deeper into tidy modeling with R at https://www.tmwr.org</code></pre>
 <pre><code>## Loading required package: lattice</code></pre>
 <pre><code>## 
 ## Attaching package: &#39;caret&#39;</code></pre>
@@ -686,16 +686,202 @@ training set will <strong>always</strong> result in an artificially
 optimistic estimate of model performance.</p>
 <p>For both models, table 10.1 summarizes the RMSE estimate for the
 training and test sets:</p>
-<p>|Table 10.1: Performance statistics for training and test sets| ||||
-||<strong>RMSE</strong>|<strong>Estimates</strong>|
-|<strong>object</strong>|<strong>train</strong>|<strong>test</strong>|
-|lm_fit|0.0754|0.0736| |rf_fit|0.0365|0.0704| —</p>
+<center>
+Table 10.1: Performance statistics for training and test sets
+</center>
+<table>
+<tbody>
+<tr class="odd">
+<td align="left"></td>
+<td align="left"><strong>RMSE</strong></td>
+<td align="left"><strong>Estimates</strong></td>
+</tr>
+<tr class="even">
+<td align="left"><strong>object</strong></td>
+<td align="left"><strong>train</strong></td>
+<td align="left"><strong>test</strong></td>
+</tr>
+<tr class="odd">
+<td align="left">lm_fit</td>
+<td align="left">0.0754</td>
+<td align="left">0.0736</td>
+</tr>
+<tr class="even">
+<td align="left">rf_fit</td>
+<td align="left">0.0365</td>
+<td align="left">0.0704</td>
+</tr>
+</tbody>
+</table>
+<hr />
 <p>The main takeaway from this example is that repredicting the training
 set will result in an artificially optimistic estimate of performance.
 It is a bad idea for most models.</p>
 <p>If the test set should not be used immediately, and repredicting the
-training set is a bd idea, what should be done? Resampling methods, such
-as cross-validation or validation sets, are the solution.</p>
+training set is a bad idea, what should be done? Resampling methods,
+such as cross-validation or validation sets, are the solution.</p>
+</div>
+<div id="resamplling-methoes" class="section level2">
+<h2>10.2 Resamplling Methoes</h2>
+<p>Most sampling methods are empirical simulation systems that emulate
+the process of using some data for modeling and different data for
+evaluation.Most resampling methods are iterative, meaning that this
+process is repeated multiple times.</p>
+<p>Resembling is conducted only on the training set, the test said is
+not involved. For each adoration of sampling, the data are partitioned
+into two sub samples:</p>
+<ul>
+<li><p>the model is fit with the <em>analysis set</em>.</p></li>
+<li><p>the model is evaluated with the <em>assessment set</em>.</p></li>
+</ul>
+<p>These two sub samples are somewhat analogous to training and test
+sets.Our language of <em>analysis</em> and <em>assessment</em> avoids
+confusion with the initial split of the data. These data sets are
+mutually exclusive. The partitioning scheme used to create analysis in
+assessment sets is usually the defining characteristic of the
+method.</p>
+<p>The next section defines several commonly used resampling methods and
+discusses their pros and cons.</p>
+<div id="cross-validation" class="section level3">
+<h3>10.2.1 Cross-Validation</h3>
+<p>Cross-validation is a well established resampling method. While there
+are a number of variations, the most common cross validation method is
+V–fold (such as 10-fold cross-validation). For example, when V=3, the
+analysis sets are 2/3 of the training set and each assessments that is a
+distinct 1/3. The final resampling estimate of the performance averages
+each of the V replicates.</p>
+<p>In practice, values of V the are most often 5 or 10; we generally
+prefer 10–fold cross–validation as a default because it is large enough
+for good results in most situations.</p>
+<p>The primary input is the training set data frame as well as the
+number of folds (defaulting to 10):</p>
+<pre class="r"><code>set.seed(1001)
+ames_folds &lt;- vfold_cv(ames_train, v = 10)
+ames_folds</code></pre>
+<pre><code>## #  10-fold cross-validation 
+## # A tibble: 10 × 2
+##    splits             id    
+##    &lt;list&gt;             &lt;chr&gt; 
+##  1 &lt;split [2107/235]&gt; Fold01
+##  2 &lt;split [2107/235]&gt; Fold02
+##  3 &lt;split [2108/234]&gt; Fold03
+##  4 &lt;split [2108/234]&gt; Fold04
+##  5 &lt;split [2108/234]&gt; Fold05
+##  6 &lt;split [2108/234]&gt; Fold06
+##  7 &lt;split [2108/234]&gt; Fold07
+##  8 &lt;split [2108/234]&gt; Fold08
+##  9 &lt;split [2108/234]&gt; Fold09
+## 10 &lt;split [2108/234]&gt; Fold10</code></pre>
+<p>The column named <code>splits</code> contains information and how to
+split the data (similar to the object used to create initial
+training/test partition). While each row of <code>splits</code> has an
+embedded copy of the entire training site, R a smart enough not to make
+copies of the data in memory. The print method inside of the tibble
+shows the frequency of each: <code>[2k/220]</code> Indicates that
+roughly 2000 samples are in the analysis set and 220 are in that
+particular assessment set.</p>
+<p>These optics also always contain a character column called back tick
+ID back tick that labels the partition.</p>
+<p>To manually retrieve the partitioned data, the
+<code>analysis()</code> and <code>assessment()</code> functions return
+the corresponding data frames:</p>
+<pre class="r"><code># for the first fold:
+ames_folds$splits[[1]] %&gt;% 
+  analysis() %&gt;% 
+  dim()</code></pre>
+<pre><code>## [1] 2107   74</code></pre>
+<p>The <strong>tidymodels</strong> packages, such as
+<strong>tune</strong>, contain high-level user interfaces to that
+functions like <code>analysis()</code> are generally not needed for
+day-to-day work. Section 10.3 demonstrates a function to fit a model
+over these resamples.</p>
+<p>There are a variety of cross-validation variations; we’ll go through
+the most important ones.</p>
+<p>The most important variation on cross-Validation is repeated V-fault
+cross validation. Depending on data size or other characteristics, the
+resampling estimate produced by V-fault cross validation may be
+excessively noisy.As with many statistical problems, one way to reduce
+noise is to gather more data. For cross – validation, this means
+averaging more than V statistics.</p>
+<p>Large numbers of replicates tend to have less impact on the standard
+error. However, if the baseline value of <span class="math inline">\(\sigma\)</span> is impractically large, the
+diminishing returns on replication may still be worth the extra
+computational costs.</p>
+<p>To create repeats, invoke <code>vfold_cv()</code> with an additional
+argument <code>repeats</code>:</p>
+<pre class="r"><code>vfold_cv(ames_train, v = 10, repeats = 5)</code></pre>
+<pre><code>## #  10-fold cross-validation repeated 5 times 
+## # A tibble: 50 × 3
+##    splits             id      id2   
+##    &lt;list&gt;             &lt;chr&gt;   &lt;chr&gt; 
+##  1 &lt;split [2107/235]&gt; Repeat1 Fold01
+##  2 &lt;split [2107/235]&gt; Repeat1 Fold02
+##  3 &lt;split [2108/234]&gt; Repeat1 Fold03
+##  4 &lt;split [2108/234]&gt; Repeat1 Fold04
+##  5 &lt;split [2108/234]&gt; Repeat1 Fold05
+##  6 &lt;split [2108/234]&gt; Repeat1 Fold06
+##  7 &lt;split [2108/234]&gt; Repeat1 Fold07
+##  8 &lt;split [2108/234]&gt; Repeat1 Fold08
+##  9 &lt;split [2108/234]&gt; Repeat1 Fold09
+## 10 &lt;split [2108/234]&gt; Repeat1 Fold10
+## # … with 40 more rows</code></pre>
+</div>
+<div id="monte-carlo-cross-validation" class="section level3">
+<h3>Monte Carlo Cross-Validation</h3>
+<p>Another variant of re-fold cross validation is Monte Carlo cross
+validation (MCCV, Xu and Liang (2001)). Like V – fold cross validation,
+it allocates a fixed proportion of data to the assessment sets. The
+difference between MCCV and regular cross-validation is that, for MCCV,
+this proportion of the data is randomly selected each time. To create
+this resembling objects:</p>
+<pre class="r"><code>mc_cv(ames_train, prop = 9/10, times = 20)</code></pre>
+<pre><code>## # Monte Carlo cross-validation (0.9/0.1) with 20 resamples  
+## # A tibble: 20 × 2
+##    splits             id        
+##    &lt;list&gt;             &lt;chr&gt;     
+##  1 &lt;split [2107/235]&gt; Resample01
+##  2 &lt;split [2107/235]&gt; Resample02
+##  3 &lt;split [2107/235]&gt; Resample03
+##  4 &lt;split [2107/235]&gt; Resample04
+##  5 &lt;split [2107/235]&gt; Resample05
+##  6 &lt;split [2107/235]&gt; Resample06
+##  7 &lt;split [2107/235]&gt; Resample07
+##  8 &lt;split [2107/235]&gt; Resample08
+##  9 &lt;split [2107/235]&gt; Resample09
+## 10 &lt;split [2107/235]&gt; Resample10
+## 11 &lt;split [2107/235]&gt; Resample11
+## 12 &lt;split [2107/235]&gt; Resample12
+## 13 &lt;split [2107/235]&gt; Resample13
+## 14 &lt;split [2107/235]&gt; Resample14
+## 15 &lt;split [2107/235]&gt; Resample15
+## 16 &lt;split [2107/235]&gt; Resample16
+## 17 &lt;split [2107/235]&gt; Resample17
+## 18 &lt;split [2107/235]&gt; Resample18
+## 19 &lt;split [2107/235]&gt; Resample19
+## 20 &lt;split [2107/235]&gt; Resample20</code></pre>
+</div>
+</div>
+<div id="validation-sets" class="section level2">
+<h2>10.2.2 Validation Sets</h2>
+<p>When using a validation set, the initial available data set is split
+into a training set, validation set, and a test set.</p>
+<p>Validation sets are often used when the original pool of data is very
+large. In this case, a single large partition may be adequate to
+characterize model performance without having to do multiple resampling
+iterations.</p>
+<p>With the <strong>rsample</strong> package, a validation set is like
+any other resembling object; this type is different only in that it has
+a single iteration.</p>
+<p>To create a validation set object that uses 3/4 of the data for model
+fitting:</p>
+<pre class="r"><code>set.seed(1002)
+val_set &lt;- validation_split(ames_train, prop = 3/4)
+val_set</code></pre>
+<pre><code>## # Validation Set Split (0.75/0.25)  
+## # A tibble: 1 × 2
+##   splits             id        
+##   &lt;list&gt;             &lt;chr&gt;     
+## 1 &lt;split [1756/586]&gt; validation</code></pre>
 </div>
 
 
