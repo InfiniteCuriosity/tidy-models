@@ -376,3 +376,238 @@ map_dfr(time_slices$splits, ~ assessment(.x) %>%  data_range())
 
 ```
 
+## 10.3 Estimating Performance
+
+Any of the resembling methods disgusting this chapter can be used to evaluate the modeling process (including pre-processing, model fitting, etc.). These methods are effective because different groups of data are used to train the model and assess the model. To reiterate, the process to use resampling is:
+
+1. During resembling, the analysis set is used to pre-process the data, applying the pre-processing to itself, and then using those pre-processed data to fit the model.
+
+2. The pre-processing statistics produced by the analysis set or applied to the assessment set.The predictions from the assessment set estimate performance on new data.
+
+For our example, let's save the predictions in order to visualize the model fit and residuals:
+
+```{r Save predictions, visualize the results}
+
+keep_pred <- control_resamples(save_pred = TRUE, save_workflow = TRUE)
+
+set.seed(1003)
+rf_res <- 
+  rf_workflow %>% 
+  fit_resamples(resamples = ames_folds, control = keep_pred)
+rf_res
+
+```
+
+The return value is a table similar to the input of the samples, along with some extra columns:
+
+* `.metrics` is a list column of tables containing the assessment set of performance statistics.
+
+* `.notes` is another list column of tables cataloging any warnings or errors generated to donate resampling. Note that errors will not stop subsequent execution of resampling.
+
+* `.predictions` is present when `save_pred = TRUE` . This list column contains tibbles with the out-of-sample predictions.
+
+While these list columns may look daunting, they can be easily reconfigured using **tidyr** or with convenience functions that tidymodels provides. For example, to return the performance metrics in a more usable format:
+
+```{r Returning performance metrics in a more usable format}
+
+collect_metrics(rf_res, summarize = FALSE)
+
+# summarize = FALSE provides the results for each fold
+
+```
+
+Notice how much more realistic the performance estimates are than the resubstitution estimates from Section 10.1!
+
+To obtain the assessment set predictions, and compare the mean of the predicted value and the Sale Price:
+
+```{r Obtain the assessment set predictions}
+
+assess_res <- collect_predictions(rf_res)
+mean(assess_res$.pred) - mean(assess_res$Sale_Price)
+
+```
+
+Since this analysis used 10-fold cross-validation, there is one unique prediction for each training set sample. These data can generate helpful plots of the model to understand where it potentially failed. For example, Figure 10.9 compares the observed and held-out predicted values:
+
+```{r Plot of predictede vs actual sale price}
+
+assess_res %>% 
+  ggplot(aes(x = Sale_Price, y = .pred)) +
+  geom_point(alpha = 0.15) +
+  geom_abline(color = "red") +
+  coord_obs_pred() +
+  ylab("Predicted")
+
+```
+
+There are two houses in the training set with a low observed sale price that are significantly overpredicted by the model. Which ouses are these? Let's find out fro mthe `assess_res` result:
+
+```{r Finding the two houses that have a low observed sale price but are overpredicted by the model}
+
+over_predicted <- 
+  assess_res %>% 
+  mutate(residual = Sale_Price - .pred) %>% 
+  arrange(desc(abs(residual))) %>% 
+  slice(1:2)
+
+ames_train %>% 
+  slice(over_predicted$.row) %>% 
+  select(Gr_Liv_Area, Neighborhood, Year_Built, Bedroom_AbvGr, Full_Bath)
+
+```
+
+Identifying examples like these with especially poor performance can help us follow up and investigate why these specific predictions are so poor.
+
+Let's move back to the homes overall. How can we use a validation set instead of cross-validation? From our previous **rsample** object:
+
+```{r Use a validation set instead of cross-validation}
+
+val_res <- rf_workflow %>% fit_resamples(resamples = val_set)
+val_res
+
+collect_metrics(val_res)
+
+```
+
+## 10.4 Parallel Processing
+
+For computations conducted on a single computer, the number of possible worker processes is determined by the **parallel** package:
+
+```{r Number of parallel processes}
+
+parallel::detectCores(logical = FALSE)
+
+
+parallel::detectCores(logical = TRUE)
+
+```
+
+## 10.5 Savint 5he Resampled Objects
+
+While the models created during resampling are not preserved, there is a method for keeping them or some of their components. The `extract` option of `control_reesamples()` specifies a function that takes a single argument; we'll use `x`. When executed, `x     results in a fitted workflow object, regardless of whether you provided `fit_resamples()` with a workflow. Recall that the **workflows** package has functions that can pull the different components of the objects (e.d. the model, recipe, etc.)
+
+Let's fit a linear regression model using the recipe we developed in Chapter 8:
+
+```{r Linear regression model using the recipe we devleoped in Chapter 8}
+
+ames_recipe <- 
+  recipe(Sale_Price ~ Neighborhood + Gr_Liv_Area + Year_Built + Bldg_Type + Latitude + Longitude, data = ames_train) %>% 
+  step_other(Neighborhood, threshold = 0.01) %>% 
+  step_dummy(all_nominal_predictors()) %>% 
+  step_interact( ~ Gr_Liv_area:starts_with("Bldg_Type_")) %>% 
+  step_ns(Latitude, Longitude, deg_free = 20)
+
+lm_workflow <- 
+  workflow() %>% 
+  add_recipe(ames_recipe) %>% 
+  add_model(linear_reg() %>% set_engine("lm"))
+
+lm_fit <- lm_workflow %>% fit(data = ames_train)
+
+# Select the recipe:
+extract_recipe(lm_fit, estimated = TRUE)
+
+```
+
+We can save the linear model coefficients for a fitted model object from a workflow:
+
+```{r Save the linear model coefficients}
+
+get_model <- function(x){
+  extract_fit_parsnip(x) %>% tidy()
+}
+
+# test the model:
+get_model(lm_fit)
+
+```
+
+Now let's apply this function to the ten resampled fits. The results of the extraction function is wrapped in a list object and returned in a tibble:
+
+```{r apply the function to the ten resampled fits}
+
+ctrl <- control_resamples(extract = get_model)
+
+lm_res <- lm_workflow %>% fit_resamples(resamples = ames_folds, control = ctrl)
+
+lm_res
+
+
+
+```
+
+Now there is an `.extract` column with nested tibbles. What do these contain? Let's find out by subsetting:
+
+```{r Finding out what is in the .extracts column}
+
+lm_res$.extracts[[1]][[1]]
+
+```
+
+Note that I am *NOT* able to get this section of code to run. It returns an error, "Error in UseMethod(/"tidy\")
+
+## Chapter Summary
+
+This chapter describes one of the fundamental tools of data analysis, the ability to measure the performance variation in model results.Resampling enables us to determine how well the model works without using the test set.
+
+An important function from the **tune** package, called `fit_resamples()`, was introduced. The interface for this function is also used in future chapters that describe model tuning tools.
+
+The data analysis code, so far, for the Ames data is:
+
+```{r R code used fso far for the Ames data set}
+
+library(tidymodels)
+data(ames)
+ames <- mutate(ames, Sale_Price = log10(Sale_Price))
+
+set.seed(502)
+ames_split <- initial_split(ames, prop = 0.80, strata = Sale_Price)
+ames_train <- training(ames_split)
+ames_test <- testing(ames_split)
+
+ames_recipe <- 
+  recipe(Sale_Price ~ Neighborhood + Gr_Liv_Area + Year_Built + Bldg_Type + Latitude + Longitude, data = ames_train) %>% 
+  step_log(Gr_Liv_Area, base = 10) %>% 
+  step_other(Neighborhood, threshold = 0.01) %>% 
+  step_dummy(all_nominal_predictors()) %>% 
+  step_interact( ~ Gr_Liv_Area:starts_with("Bldg_Type_")) %>% 
+  step_ns(Latitude, Longitude, deg_free = 20)
+
+lm_model <- linear_reg() %>% set_engine("lm")
+
+lm_wflow <- 
+  workflow() %>% 
+  add_model(lm_model) %>% 
+  add_recipe(ames_recipe)
+
+lm_fit <- fit(lm_wflow, ames_train)
+
+rf_model <- 
+  rand_forest(trees = 1000) %>% 
+  set_engine("ranger") %>% 
+  set_mode("regression")
+
+rf_workflow <- 
+  workflow() %>% 
+  add_formula(
+    Sale_Price ~ Neighborhood + Gr_Liv_Area + Year_Built + Bldg_Type + Latitude + Longitude) %>% 
+  add_model(rf_model)
+
+set.seed(1001)
+ames_folds <- vfold_cv(ames_train, v = 10)
+
+keep_pred <- control_resamples(save_pred = TRUE, save_workflow = TRUE)
+
+set.seed(1003)
+rf_res <- rf_workflow %>% fit_resamples(resamples = ames_folds, control = keep_pred)
+
+```
+
+REFERENCES
+
+———. 2001a. “Random Forests.” Machine Learning 45 (1): 5–32.
+Davison, A, and D Hinkley. 1997. Bootstrap Methods and Their Application. Vol. 1. Cambridge university press.
+Hyndman, R, and G Athanasopoulos. 2018. Forecasting: Principles and Practice. OTexts.
+———. 2020. Feature Engineering and Selection: A Practical Approach for Predictive Models. CRC Press.
+Schmidberger, M, M Morgan, D Eddelbuettel, H Yu, L Tierney, and U Mansmann. 2009. “State of the Art in Parallel Computing with R.” Journal of Statistical Software 31 (1): 1–27. https://www.jstatsoft.org/v031/i01.
+Xu, Q, and Y Liang. 2001. “Monte Carlo Cross Validation.” Chemometrics and Intelligent Laboratory Systems 56 (1): 1–11.
