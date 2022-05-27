@@ -383,3 +383,7 @@ The**famous**package as recipe steps that can be used to address classic balance
 
 Other step functions are row-based as well: `step_filter()`, `step_sample()`, `step_slice()`, and `step_arrange()`. In almost all uses of these steps, the `skip` argument should be set to `TRUE`.
 
+### 8.4.7 Natural Language Processing
+
+Recipes can also handle data that are not in the traditional structure where the columns are features. For example, the **textrecipes** package can apply natural language processing methods to the data. The input column is typically a string of text, and different steps can be used to tokenize the data (e.g. split the text into separate words), filter out tokens, and create new features appropriate for modeling.
+
