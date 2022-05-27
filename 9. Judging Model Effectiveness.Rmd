@@ -87,7 +87,7 @@ ames_test_res
 
 ```
 
-The predicted numeric outcome from the regression model is names `.pred`. Let's match the predicted values iwth their corresponding observed outcome values:
+The predicted numeric outcome from the regression model is names `.pred`. Let's match the predicted values with their corresponding observed outcome values:
 
 ```{r Match observed vs predicted outcome values}
 
@@ -133,3 +133,90 @@ ames_metrics(ames_test_res, truth = Sale_Price, estimate = .pred)
 
 This tidy data format stacks the metrics vertically. The route means squared error and mean absolute air metrics are both on the scale of the outcome (so back tick back tick for our example) and measure the difference between the predicted and observed values. The value for $R^2$ Measures the squared correlation between the predicted and observed values, so values closer to one are better.
 
+## 9.3 Binary Classification Metrics
+
+To illustrate other ways to measure model performance, we will switch to a different example. The **modeldata** package (another one of the tidymodels packages) contains example predictions from a test data set with two classes ("Class 1" and "Class 2"):
+
+```{r Two class example}
+
+data("two_class_example")
+tibble(two_class_example) %>% 
+  map_dbl(mean)
+ 
+```
+
+For the hard class predictions, a variety of **yardstick** functions are helpful:
+
+Confusion matrix:
+
+```{r Yardstick functions for hard class predictions}
+
+conf_mat(two_class_example, truth = truth, estimate = predicted)
+
+```
+
+Accuracy:
+
+```{r Accuracy}
+
+accuracy(two_class_example, truth, predicted)
+
+```
+
+Matthew's Correlation Coefficient:
+
+```{r Matthews Correlation Coefficient}
+
+mcc(two_class_example, truth, predicted)
+
+```
+
+F1 metric:
+
+```{r F1 metric}
+
+f_meas(two_class_example, truth, predicted)
+
+```
+
+Combining these three classification metrics together:
+
+```{r Combining three classification metrics together}
+
+classification_metrics <- metric_set(accuracy, mcc, f_meas)
+classification_metrics(two_class_example, truth = truth, estimate = predicted)
+
+```
+
+The Matthews correlation coefficient and F1 score both summarize the confusion matrix, but compared to `mcc()`, which measures the quality of both positive and negative examples, the `f_meas()` metric emphasizes the positive class, i.e., the event of interest. For binary classification data sets like this example, yardstick functions have a standard argument called `event_level` to distinguish positive and negative levels. The default (which we used in this code) is that the first level of the outcome factor is the event of interest.
+
+For example, the receiver operating characteristic (ROC) curve computes the sensitivity and specificity over a continuum of different event thresholds. The predicted class column is not used. There are two **yardstick** functions for this method: `roc_curve()` computes the data points that make up the ROC curve and `roc_auc()` computes the area under the curve.
+
+The interfaces to these types of metric functions use the `...` argument placeholder to pass in the appropriate class probability column. For two-class problems, the probability column for the event of interest is passed into the function:
+
+```{r ROC curve}
+
+two_class_curve <- roc_curve(two_class_example, truth, Class1)
+two_class_curve
+
+
+```
+
+Let's estimate the ROC curve:
+
+```{r Look at the ROC curve}
+
+roc_auc(two_class_example, truth, Class1)
+
+```
+
+Let's look at the ROC curve:
+
+```{r}
+
+autoplot(two_class_curve)
+```
+
+If the curve was close to the diagonal line, then the models predictions would be no better than random guessing. Since the curve is in the top, left – hand corner, we see that our model performs well at different thresholds.
+
+There are a number of other functions that use probability estimates, including `gain_curve()`, `lift_curve()`, and `pr_curve()`
