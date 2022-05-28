@@ -14,7 +14,7 @@ Start by loading the required packages in two lines of code:
 
 ```{r Load all required packages in two lines of code}
 
-Packages <- c("tidymodels", "caret", "multilevelmod", "lme4", "VCA", "survival", "patchwork", "splines", "ranger", "ggrepel")
+Packages <- c("tidymodels", "caret", "multilevelmod", "lme4", "VCA", "survival", "patchwork", "splines", "ranger", "ggrepel", "corrr")
 lapply(Packages, library, character = TRUE)
 
 tidymodels_prefer(quiet = FALSE)
@@ -82,6 +82,8 @@ rf_res <-
   fit_resamples(resamples = ames_folds, control = keep_pred)
 
 ```
+
+## 11.1 Creating Multiple Models with Workflow Sets
 
 In section 7.5 we described the idea of a workflow set or different pre-processors and or models can combinatorially generated. In chapter 10, we used a recipe for the Ames data that included an interaction term as well as spline functions for longitude and latitude. To demonstrate more with workflow sets, let's create three different linear models that add these pre-processing steps incrementally. We can test whether these additional terms improve the model results. We will create three recipes, then combine them into a workflow set:
 
@@ -151,7 +153,7 @@ collect_metrics(lm_models) %>%
 
 ```
 
-What about the random Forrest model from the previous chapter? We can add it to the sat by first converting it to add some workflow sad, then binding rows. This requires that, when the model was resembled, the `save_workflow=TRUE` option was set in the control function.
+What about the random Forrest model from the previous chapter? We can add it to the set by first converting its own workflow set, then binding rows. This requires that, when the model was resampled, the `save_workflow=TRUE` option was set in the control function.
 
 ```{r Adding the random forest model}
 
@@ -173,7 +175,7 @@ collect_metrics(four_models) %>%
 
 Note that random forest has the lowest of the four in root-mean-squared error
 
-The `autoplot()` method, with output in figure 11.1, shows confidence intervals for each model in order of best to worst. In this chapter, will focus on the coefficients of determination (a.k.a. $R^2$) and use `metric = "rsq"` in the call to set up our plat:
+The `autoplot()` method, with output in figure 11.1, shows confidence intervals for each model in order of best to worst. In this chapter, we will focus on the coefficients of determination (a.k.a. $R^2$) and use `metric = "rsq"` in the call to set up our plat:
 
 ```{r Plotting r-squared for each of the four models}
 
@@ -186,4 +188,119 @@ autoplot(four_models, metric = "rsq") +
 From this plot of $R^2$ confidence intervals, we can see that the random forest method is doing the best job and there are minor improvements in the linear models as we add more recipe steps.
 
 Now that we have ten resampled performance estimates for each of the four models, these summary statistics can be used to make between-model comparisons.
+
+## 11.2 Comparing Resampled Performance Statistics
+
+Considering the preceding results for the three linear models, it appears that the additional terms do not profoundly improve the mean RMSE or $R^2$ statistics for the linear models. The difference is small, but it might be larger than the experimental noise in the system, i.e., considered statistically significant. We can formally test the hypothesis that the additional terms increase $R^2$.
+
+In other words, there are some re-samples where performance across models tends to be low and others where it tends to be high. In statistics this is called a *resample-to-resample* component of variation.
+
+To illustrate, let's gather the individual resampling statistics for the linear models and the random forest. Will focus on the $R^2$ statistic for each model, which measures correlation between observed and predicted sales prices for each house. Let's `filter ()` to keep only the $R^2$ metrics, reshape the results, and compute how the metrics are correlated with each other.
+
+```{r Gather individual resampling statistics for the linear models, keep the R^2 metrics}
+
+rsq_individual_estimates <- 
+  collect_metrics(four_models, summarize = FALSE) %>% 
+  filter(.metric == "rsq")
+
+rsq_wider <- 
+  rsq_individual_estimates %>% 
+  select(wflow_id, .estimate, id) %>% 
+  pivot_wider(id_cols = "id", names_from = "wflow_id", values_from = 
+                .estimate)
+
+corrr::correlate(rsq_wider %>%  select(-id), quiet = TRUE)
+
+```
+
+Let's see this visually:
+
+```{r Observe correlations between models visually}
+
+rsq_individual_estimates %>% 
+  mutate(wflow_id = reorder(wflow_id, .estimate)) %>% 
+  ggplot(aes(x = wflow_id, y = .estimate, group = id, color = id)) +
+  geom_line(alpha = 0.5, lwd = 1.25) +
+  theme(legend.position = "none") +
+  ggtitle("Figure 11.2: Resample statistics across models") +
+  ylim(0, 1)
+
+```
+
+If the resample–to-resample effect was not real, there would not be any parallel lines. A statistical test for the correlations evaluates whether the magnitudes of these correlations are not simply noise. For the linear models:
+
+```{r testing if the magnitudes of the correlations is noise or effect}
+
+rsq_wider %>% 
+  with(cor.test(basic_lm, splines_lm)) %>% 
+  tidy() %>% 
+  select(estimate, starts_with("conf"))
+
+```
+
+The results of the correlation test (the `estimate` of the correlation and confidence intervals) show us that they within–resample correlations appear to be real.
+
+What effect does the extra correlation have on our analysis? Consider the variance of a difference of two variables:
+
+<center>$Var[X-Y] = Var[X] + Var{y} - 2Cov[X,Y]$</center>
+
+The last term is the covariance between two items. If there is a significant positive covariance, then any statistical test of this difference would be critically under-powered comparing the difference in two models. In other words, ignoring the resample-to-resample effect would bias our model comparisons toward finding no differences between models.
+
+Practical significance is subjective; two people can have very different ideas on the threshold for importance. However, we'll show later that this consideration can be very helpful when deciding between models.
+
+## 11.3 Simple Hypothesis Testing Methods
+
+We can use simple hypothesis testing to make formal comparisons between models. Consider the familiar linear statistical model:
+
+<center>$y_{ij} = \beta_0 + \beta_1x_{i1} + ... + \beta_p x_{ip} + \epsilon_{ij}$</center>
+
+This versatile model is used to create regression models as well as being the basis for the popular analysis of variance (ANOVA) technique for comparing groups. With the ANOVA model, the predictors ($x_{ij}$) are binary dummy variables for different groups. From this, the $\beta$ parameters estimate whether two or more groups are different from one another using hypothesis testing techniques.
+
+In our specific situation, the ANOVA can also make model comparisons. Suppose the individual resamples $R^2$ statistics serve as the *outcome data* (i.e. the $y_{ij}) and the models as the *predictors* in the ANOVA model. A sampling of this data structure is shown in Table 11.1:
+
+<center>Table 11.1: Model performance statistics as a data set for analysis</center>
+||
+|:---:|:---:|:---:|:---:|:---:|:---:|
+|**Y = rsq**|**model**|**X1**|**X2**|**X3**|**id**|
+|0.8108|basic_lm|0|0|0|Fold01|
+|0.8134|interlace_lm|1|0|0|Fold01|
+|0.8615|random_forest|0|1|0|Fold01|
+|0.8217|splines_lm|0|0|1|Fold01|
+|0.8045|basic_lm|0|0|0|Fold02|
+|0.8103|interact_lm|1|0|0|Fold02|
+---
+
+The `X1`, `X2`, and `X3` columns in the table are indicators for the values in the `model` column. Their order was defined in the same way that R would define them, alphabetically ordered by `model`.
+
+For our comparison, the specific ANOVA model is:
+
+<center>$y_{ij} = \beta_0 + \beta_1x_{i1} + \beta_2x_{i2}+ \beta_3x_{i3} + \epsilon_{ij}$</center>
+
+where
+
+* $\beta_0$ is the estimate of the mean $R^2$ when interactions are added to the basic linear model,
+* $\beta_1$ is the change in mean $R^2$ when interactions are added to the basic linear model,
+$ \beta_2 is the change in mean $R^2$ between the basic linear model and the random forest model,
+* $\beta_3$ is the change in mean $R^2$ between the basic linear model and one with interactions and splines.
+
+A simple and fast method for comparing two models at a time is to use the differences in $R^2$ values as the outcome data in the ANOVA model. Since the outcomes are matched by resample, the differences do not contain the resample-to-resample effect and, for this reason, the standard ANOVA model is appropriate. To illustrate, this call to `lm()` tests the difference between two of the linear regression models:
+
+```{r Testing the difference between two linear regression models}
+
+compare_lm <- 
+  rsq_wider %>% 
+  mutate(difference = splines_lm - basic_lm)
+
+lm(difference ~ 1, data = compare_lm) %>% 
+  tidy(conf.int = TRUE) %>% 
+  select(estimate, p.value, starts_with("conf"))
+
+rsq_wider %>% 
+  with( t.test(splines_lm, basic_lm, paired = TRUE)) %>% 
+  tidy() %>% 
+  select(estimate, p.value, starts_with("conf"))
+
+```
+
+We could evaluate each pair-wise difference in this way. Note that the p-value indicates a *statistically significant* signal; the collection of spline terms for longitude and latitude do appear to have an effect. However, the difference in $R^2$ is estimated at 0.91%. If our practical effect size were 2%, we might not consider these terms worth including in the model.
 
