@@ -1,0 +1,189 @@
+---
+title: "1. Comparing Models with Resampling"
+author: "Russ Conte"
+date: '2022-05-27'
+output: html_document
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Start by loading the required packages in two lines of code:
+
+```{r Load all required packages in two lines of code}
+
+Packages <- c("tidymodels", "caret", "multilevelmod", "lme4", "VCA", "survival", "patchwork", "splines", "ranger", "ggrepel")
+lapply(Packages, library, character = TRUE)
+
+tidymodels_prefer(quiet = FALSE)
+
+```
+
+Start with code for multi-core processing
+
+```{r multi-core processing}
+
+library(doParallel)
+cl <- makePSOCKcluster(10)
+registerDoParallel(cl)
+
+```
+
+```{r Code for this chapter, from previous chapters}
+
+library(tidymodels)
+data(ames)
+ames <- mutate(ames, Sale_Price = log10(Sale_Price))
+
+set.seed(502)
+ames_split <- initial_split(ames, prop = 0.80, strata = Sale_Price)
+ames_train <- training(ames_split)
+ames_test  <-  testing(ames_split)
+
+ames_rec <- 
+  recipe(Sale_Price ~ Neighborhood + Gr_Liv_Area + Year_Built + Bldg_Type + 
+           Latitude + Longitude, data = ames_train) %>%
+  step_log(Gr_Liv_Area, base = 10) %>% 
+  step_other(Neighborhood, threshold = 0.01) %>% 
+  step_dummy(all_nominal_predictors()) %>% 
+  step_interact( ~ Gr_Liv_Area:starts_with("Bldg_Type_") ) %>% 
+  step_ns(Latitude, Longitude, deg_free = 20)
+  
+lm_model <- linear_reg() %>% set_engine("lm")
+
+lm_workflow <- 
+  workflow() %>% 
+  add_model(lm_model) %>% 
+  add_recipe(ames_rec)
+
+lm_fit <- fit(lm_workflow, ames_train)
+
+set.seed(1001)
+ames_folds <- vfold_cv(ames_train, v = 10)
+
+rf_model <- 
+  rand_forest(trees = 1000) %>% 
+  set_engine("ranger") %>% 
+  set_mode("regression")
+
+rf_workflow <- 
+  workflow() %>% 
+  add_formula(
+    Sale_Price ~ Neighborhood + Gr_Liv_Area + Year_Built + Bldg_Type + Latitude + Longitude) %>% 
+  add_model(rf_model)
+
+keep_pred <- control_resamples(save_pred = TRUE, save_workflow = TRUE)
+
+set.seed(1003)
+rf_res <- 
+  rf_workflow %>% 
+  fit_resamples(resamples = ames_folds, control = keep_pred)
+
+```
+
+In section 7.5 we described the idea of a workflow set or different pre-processors and or models can combinatorially generated. In chapter 10, we used a recipe for the Ames data that included an interaction term as well as spline functions for longitude and latitude. To demonstrate more with workflow sets, let's create three different linear models that add these pre-processing steps incrementally. We can test whether these additional terms improve the model results. We will create three recipes, then combine them into a workflow set:
+
+```{r Create three recipes, then combine into a workflow set}
+
+basic_recipe <- 
+  recipe(Sale_Price ~ Neighborhood + Gr_Liv_Area + Year_Built + Bldg_Type + Latitude + Longitude, data = ames_train) %>% 
+  step_log(Gr_Liv_Area, base = 10) %>% 
+  step_other(Neighborhood, threshold = 0.01) %>% 
+  step_dummy(all_nominal_predictors())
+
+interaction_recipe <- 
+  basic_recipe %>% 
+  step_interact( ~ Gr_Liv_Area:starts_with("Bldg_Type_"))
+
+spline_recipe <- 
+  interaction_recipe %>% 
+  step_ns(Latitude, Longitude, deg_free = 50)
+
+preproc <- 
+  list(
+    basic = basic_recipe,
+    interact = interaction_recipe,
+    splines = spline_recipe
+  )
+
+lm_models <- workflow_set(preproc, list(lm = lm_model), cross = FALSE)
+
+lm_models
+
+keep_pred <- control_resamples(save_pred = TRUE, save_workflow = TRUE)
+
+```
+
+We'd like to re-sample each of these models in turn. To do so, we will use a **purrr**-like function called `workflow_map ()`. This function takes an initial argument of the function to apply to the workflows, followed by options to that function. We also set a `verbose` argument that will print the progress as well as a `seed` argument that makes sure that each model uses the same random number stream as the others.
+
+```{r Resample each of the models in turn}
+
+lm_models <- 
+  lm_models %>% 
+  workflow_map("fit_resamples",
+               # Options to `workflow_map()`:
+               seed = 1101,
+               verbose = TRUE,
+               # Options to `fit_resamples()`:
+               resamples = ames_folds,
+               control = keep_pred)
+
+```
+
+Let's look at lm_models
+
+```{r Look at lm_models}
+
+lm_models
+
+```
+
+Noticed that the `option` and `result` columns are now populated. The former includes the options to `fit_resamples()` that were given (for reproducibility), and the latter column contains the results produced by `fit_resamples()`.
+
+There are a few convenience functions for workflow sets, including `collect_metrics()` to collate the performance statistics. We can `filter` to any specific metric we are interested in:
+
+```{r Filtering the workflow for any specific metrics}
+
+collect_metrics(lm_models) %>% 
+  filter(.metric == "rmse")
+
+```
+
+What about the random Forrest model from the previous chapter? We can add it to the sat by first converting it to add some workflow sad, then binding rows. This requires that, when the model was resembled, the `save_workflow=TRUE` option was set in the control function.
+
+```{r Adding the random forest model}
+
+four_models <- 
+  as_workflow_set(random_forest = rf_res) %>% 
+  bind_rows(lm_models)
+four_models
+
+```
+
+How does random forest compare to the previous three models?
+
+```{r How does random forest compare to the previous three models?}
+
+collect_metrics(four_models) %>% 
+  filter(.metric == "rmse") %>% 
+  arrange(mean)
+```
+
+Note that random forest has the lowest of the four in root-mean-squared error
+
+The `autoplot()` method, with output in figure 11.1, shows confidence intervals for each model in order of best to worst. In this chapter, will focus on the coefficients of determination (a.k.a. $R^2$) and use `metric = "rsq"` in the call to set up our plat:
+
+```{r Plotting r-squared for each of the four models}
+
+autoplot(four_models, metric = "rsq") +
+  geom_text_repel(aes(label = wflow_id), nudge_x = 1/8, nudge_y = 1/100) +
+  theme(legend.position = "none")
+
+```
+
+From this plot of $R^2$ confidence intervals, we can see that the random forest method is doing the best job and there are minor improvements in the linear models as we add more recipe steps.
+
+Now that we have ten resampled performance estimates for each of the four models, these summary statistics can be used to make between-model comparisons.
+

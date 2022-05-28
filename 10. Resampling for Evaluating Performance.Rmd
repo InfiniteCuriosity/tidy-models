@@ -370,7 +370,7 @@ data_range <- function(x){
   summarise(x, fist = min(x), last = max(x))
 }
 
-map_dfr(time_slices$splits, ~ anslysis(.x) %>% data_range())
+map_dfr(time_slices$splits, ~ analysis(.x) %>% data_range())
 
 map_dfr(time_slices$splits, ~ assessment(.x) %>%  data_range())
 
