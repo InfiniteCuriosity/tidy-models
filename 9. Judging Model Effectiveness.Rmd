@@ -262,7 +262,7 @@ There are wrapper methods that can be used to apply sensitivity, the true positi
 
 ```{r Using yardstick to automatically apply metrics to the data set}
 
-sens(hpc_cv, obs, pred, estimator = "macro")
+sensitivity(hpc_cv, obs, pred, estimator = "macro")
 
 sens(hpc_cv, obs, pred, estimator = "macro_weighted")
 

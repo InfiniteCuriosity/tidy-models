@@ -391,7 +391,7 @@ Recipes can also handle data that are not in the traditional structure where the
 
 At the time of this writing, the step functions in the recipes and themis packages that are only applied to the training data are: `step_adasyn()`, `step_bsmote()`, `step_downsample()`, `step_filter()`, `step_nearmiss()`, `step_rose()`, `step_sample()`, `step_slice()`, `step_smote()`, `step_smotenc()`, `step_tomek()`, and `step_upsample()`.
 
-8.6 Tidy A `recipe()`
+## 8.6 Tidy A `recipe()`
 
 In section 3.3 we introduced the `tidy ()` verb for statistical objects. There is also a `tidy ()` method for recipes, as well as individual recipe steps. Before proceeding, let's create an extended recipe for the Ames data using some of the new steps we discussed in this chapter:
 
