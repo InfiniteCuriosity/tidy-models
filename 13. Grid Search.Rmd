@@ -1,0 +1,367 @@
+---
+title: "13. Grid Search"
+author: "Russ Conte"
+date: '2022-05-29'
+output: html_document
+---
+
+# 13. Grid Search
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Start by loading the required packages in two lines of code:
+
+```{r Load all required packages in two lines of code}
+
+Packages <- c("tidymodels", "caret", "multilevelmod", "lme4", "VCA", "survival", "patchwork", "splines", "ranger", "ggrepel", "corrr", "tidyposterior", "rstanarm", "nnet", "ggforce")
+lapply(Packages, library, character = TRUE)
+
+tidymodels_prefer(quiet = FALSE)
+
+```
+
+Start with code for multi-core processing
+
+```{r multi-core processing}
+
+library(doParallel)
+cl <- makePSOCKcluster(10)
+registerDoParallel(cl)
+
+```
+
+In Chapter 12 we demonstrated how users can mark or tag arguments in preprocessing recipes and/or model specifications for optimization using the `tune()` function. Once we know what to optimize, it’s time to address the question of how to optimize the parameters. This chapter describes grid search methods that specify the possible values of the parameters apriori. (Chapter 14 will continue the discussion by describing iterative search methods.)
+
+Let’s start by looking at two main approaches for assembling a grid.
+
+## 13.1 Regular and Non-Regular Grids
+
+There are two main types of grids. A regular grid combines each parameter (with its corresponding set of possible values) factorially, i.e., by using all combinations of the sets. Alternatively, a non-regular grid is one where the parameter combinations are not formed from a small set of points.
+
+Before we look at each type in more detail, let’s consider an example model: the multilayer perceptron model (a.k.a. single layer artificial neural network). The parameters marked for tuning are:
+
+* The number of hidden units
+
+* The number of fitting epochs/iterations in model training
+
+* The amount of weight decay penalization
+
+Using **parsnip**, the specification for a classification model fit using the **nnet** package is:
+
+```{r The specification for a classification model fit using nnet}
+
+mlp_spec <- 
+  mlp(hidden_units = tune(), penalty = tune(), epochs = tune()) %>% 
+  set_engine("nnet", trace = 0) %>% 
+  set_mode("classification")
+
+```
+
+The argument `trace = 0-` prevents extra logging of the training process. As shown in Section 12.6, the `extract_parameter_set_dials()` function can extract the set of arguments with unknown values and sets their **dials** objects:
+
+```{r Extract the set of arguments with unknown values and set their dial objects}
+
+mlp_param <- extract_parameter_set_dials(mlp_spec)
+mlp_param %>% extract_parameter_dials("hidden_units")
+# Hidden Units (quantitative)
+# Range: [1, 10]
+
+mlp_param %>% extract_parameter_dials("penalty")
+# Amount of Regularization (quantitative)
+# Transformer: log-10 [1e-100, Inf]
+# Range (transformed scale): [-10, 0]
+
+mlp_param %>% extract_parameter_dials("epochs")
+# Epochs (quantitative)
+# Range: [10, 1000]
+
+```
+
+This output indicates that the parameter objects are complete and prints their default ranges. These values will be used to demonstrate how to create different types of parameter grids.
+
+### Regular Grids
+
+Regular grids are combinations of separate sets of parameter values. First, the user creates a distinct set of values for each parameter. The number of possible values need not be the same for each parameter. The **tidyr** function `crossing()` is one way to create a regular grid:
+
+```{r Using the crossing function to generate a set of possible values for the grid}
+
+crossing(
+  hidden_units = 1:3,
+  penalty = c(0.0, 0.1),
+  epochs = c(100,200)
+)
+
+```
+
+The parameter object knows the ranges of the parameters. The **dials** package contains a set of `grid_*()` functions that take the parameter object as input to produce different types of grids. For example:
+
+```{r Using the grid function to produce different types of grids}
+
+grid_regular(mlp_param, levels = 2)
+
+```
+
+The `levels` argument is the number of levels per parameter to create. It can also take a named vector of values:
+
+```{r Using a named vector of values in the levels argument}
+
+mlp_param %>% 
+  grid_regular(levels = c(hidden_units = 3, penalty = 2, epochs = 2))
+
+```
+
+One advantage to using a regular grid is that the relationships and patterns between the tuning parameters and the model metrics are easily understood. The factorial nature of these designs allows for examination of each parameter separately with little confounding between parameters.
+
+### Irregular Grids
+
+There are several options for creating non-regular grids. The first is to use random sampling across the range of parameters. The `grid_random()` function generates independent uniform random numbers across the parameter ranges. If the parameter object has an associated transformation (such as we have for `penalty`), the random numbers are generated on the transformed scale. Let’s create a random grid for the parameters from our example neural network:
+
+```{r Using a random grid}
+
+set.seed(1301)
+mlp_param %>% 
+  grid_random(size = 1000) %>%  # 'size' is the number of combinations
+  summary()
+
+```
+
+For `penalty`, the random numbers are uniform on the log (base-10) scale but the values in the grid are in the natural units.
+
+The issue with random grids is that, with small-to-medium grids, random values can result in overlapping parameter combinations. Also, the random grid needs to cover the whole parameter space, but the likelihood of good coverage increases with the number of grid values. Even for a sample of 15 candidate points, Figure 13.1 shows some overlap between points for our example multilayer perceptron.
+
+```{r Example of overlapping with small to medium random grids }
+
+set.seed(1302)
+mlp_param %>% 
+  # The 'original = FALSE' option keeps penalty in log10 units
+  grid_random(size = 20, original = FALSE) %>% 
+  ggplot(aes(x = .panel_x, y = .panel_y)) +
+  geom_point() +
+  geom_blank() +
+  facet_matrix(vars(hidden_units, penalty, epochs), layer.diag = 2) +
+  labs(title = "Random design with 20 candidates")
+
+```
+
+A much better approach is to use a set of experimental designs called *space-filling designs*. While different design methods have slightly different goals, they generally find a configuration of points that cover the parameter space with the smallest chance of overlapping or redundant values. Examples of such designs are Latin hypercubes (McKay, Beckman, and Conover 1979), maximum entropy designs (Shewry and Wynn 1987), maximum projection designs (Joseph, Gul, and Ba 2015), and others. See Santner et al. (2003) for an overview.
+
+The **dials** package contains functions for Latin hypercube and maximum entropy designs. As with `grid_random()`, the primary inputs are the number of parameter combinations and a parameter object. Let’s compare a random design with a Latin hypercube design for 15 candidate parameter values in Figure 13.2.
+
+```{r Latin hypercube with 20 candidates}
+
+set.seed(1303)
+mlp_param %>% 
+  grid_latin_hypercube(size = 20, original = FALSE) %>% 
+  ggplot(aes(x = .panel_x, y = .panel_y)) +
+  geom_point() +
+  geom_blank() +
+  facet_matrix(vars(hidden_units, penalty, epochs), layer.diag = 2) +
+  labs(title = "Latin Hypercube design with 20 candidates")
+
+```
+
+While not perfect, this Latin hypercube design spaces the points farther away from one another and allows a better exploration of the hyperparameter space.
+
+Space-filling designs can be very effective at representing the parameter space. The default design used by the tune package is the maximum entropy design. These tend to produce grids that cover the candidate space well and drastically increase the chances of finding good results.
+
+### 13.2 Evaluating the Grid
+
+To choose the best tuning parameter combination, each candidate set is assessed using data that were not used to train that model. Resampling methods or a single validation set work well for this purpose. The process (and syntax) closely resembles the approach in Section 10.3 that used the `fit_resamples()` function from the tune package.
+
+After resampling, the user selects the most appropriate candidate parameter set. It might make sense to choose the empirically best parameter combination or bias the choice towards other aspects of the model fit, such as simplicity.
+
+We use a classification data set to demonstrate model tuning in this and the next chapter. The data come from Hill et al. (2007), who developed an automated microscopy laboratory tool for cancer research. The data consists of 56 imaging measurements on 2019 human breast cancer cells. These predictors represent shape and intensity characteristics of different parts of the cells (e.g., the nucleus, the cell boundary, etc.). There is a high degree of correlation between the predictors. For example, there are several different predictors that measure the size and shape of the nucleus and cell boundary. Also, individually, many predictors have skewed distributions.
+
+Each cell belongs to one of two classes. Since this is part of an automated lab test, the focus was on prediction capability rather than inference.
+
+The data are included in the **modeldata** package. Let’s remove one column not needed for analysis `(case)`:
+
+```{r Retreiving the cells data}
+
+data(cells)
+cells <- cells %>% select(-case)
+dim(cells)
+
+```
+
+Given the dimensions of the data (2019, 57), we can compute performance metrics using 10-fold cross-validation:
+
+```{r Calculate performance metrics using 10-fold cross-validation}
+
+set.seed(1304)
+cell_folds <- vfold_cv(cells)
+cell_folds
+
+```
+
+Because of the high degree of correlation between predictors, it makes sense to use PCA feature extraction to decorrelate the predictors. The following recipe contains steps to transform the predictors to increase symmetry, normalize them to be on the same scale, then conduct feature extraction. The number of PCA components to retain is also tuned, along with the model parameters.
+
+Many of the predictors have skewed distributions. Since PCA is variance based, extreme values can have a detrimental effect on these calculations. To counter this, let’s add a recipe step estimating a Yeo-Johnson transformation for each predictor (Yeo and Johnson 2000). While originally intended as a transformation of the outcome, it can also be used to estimate transformations that encourage more symmetric distributions. This step `step_YeoJohnson()` occurs in the recipe just prior to the initial normalization via `step_normalize()`. Then, let’s combine this feature engineering recipe with our neural network model specification `mlp_spec`.
+
+```{r Apply principal components analysis, combine with neural network model specification}
+
+mlp_rec <- 
+  recipe(class ~ ., data = cells) %>% 
+  step_YeoJohnson(all_numeric_predictors()) %>% 
+  step_normalize(all_numeric_predictors()) %>% 
+  step_pca(all_numeric_predictors(), num_comp = tune()) %>% 
+  step_normalize(all_numeric_predictors())
+
+mlp_workflow <- 
+  workflow() %>% 
+  add_model(mlp_spec) %>% 
+  add_recipe(mlp_rec)
+
+```
+
+Let’s create a parameter object `mlp_param` to adjust a few of the default ranges. We can change the number of epochs to have a smaller range (50 to 200 epochs). Also, the default range for `num_comp()` defaults to a very narrow range (one to four components); we can increase the range to 40 components and set the minimum value to zero:
+
+```{r Create a parameter object to adjust a few of the default ranges}
+
+mlp_param <- 
+  mlp_workflow %>% 
+  extract_parameter_set_dials() %>% 
+  update(
+    epochs = epochs(c(50,200)),
+    num_comp = num_comp(c(0,40))
+  )
+
+mlp_param
+
+```
+
+The `tune_grid()` function is the primary function for conducting grid search. Its functionality is very similar to `fit_resamples()` from Section 10.3, although it has additional arguments related to the grid:
+
+* `grid`: An integer or data frame. When an integer is used, the function creates a space-filling design with `grid` number of candidate parameter combinations. If specific parameter combinations exist, the grid parameter is used to pass them to the function.
+
+* `param_info`: An optional argument for defining the parameter ranges. The argument is most useful when grid is an integer.
+
+Otherwise, the interface to `tune_grid()` is the same as `fit_resamples()`. The first argument is either a model specification or workflow. When a model is given, the second argument can be either a recipe or formula. The other required argument is an **rsample** resampling object (such as `cell_folds`). The following call also passes a metric set so that the area under the ROC curve is measured during resampling.
+
+To start, let’s evaluate a regular grid with three levels across the resamples:
+
+```{r Evaluate a regular grid with three levels across the resamples}
+
+roc_res <- metric_set(roc_auc)
+set.seed(1305)
+mlp_reg_tune <- 
+  mlp_workflow %>% 
+  tune_grid(
+    cell_folds,
+    grid = mlp_param %>% grid_regular(levels = 3),
+    metrics = roc_res
+  )
+
+mlp_reg_tune
+
+```
+
+There are high-level convenience functions we can use to understand the results. First, the `autoplot()` method for regular grids shows the performance profiles across tuning parameters in Figure 13.3
+
+```{r Autoplot shows the performance profiles across tuning parameters}
+
+autoplot(mlp_reg_tune) +
+  scale_color_viridis_d(direction = -1) +
+  theme(legend.position = "top") +
+  ggtitle("Figure 13.3: The regular grid results")
+
+```
+
+Based on these results, it would make sense to conduct another run of grid search with larger values of the weight decay penalty.
+
+To use a space-filling design, either the `grid` argument can be given an integer or one of the `grid_*()` functions can produce a data frame. To evaluate the same range using a maximum entropy design with 20 candidate values:
+
+```{r Conduct another search of grid values with larger values of the weight decay penalty}
+
+set.seed(1306)
+mlp_sfd_tune <- 
+  mlp_workflow %>% 
+  tune_grid(
+    cell_folds,
+    grid = 20,
+    # Pass in the parameter object to use the appropriate range:
+    param_info = mlp_param,
+    metrics = roc_res
+  )
+
+mlp_sfd_tune
+```
+
+The `autoplot()` method will also work with these designs, although the format of the results will be different. Figure 13.4 was produced using `autoplot(mlp_sfd_tune)`.
+
+```{r plotting the results}
+
+autoplot(mlp_sfd_tune)
+
+```
+
+This marginal effects plot (Figure 13.4) shows the relationship of each parameter with the performance metric.
+
+Take care when examining this plot; since a regular grid is not used, the values of the other tuning parameters can affect each panel.
+
+The penalty parameter appears to result in better performance with smaller amounts of weight decay. This is the opposite of the results from the regular grid. Since each point in each panel is shared with the other three tuning parameters, the trends in one panel can be affected by the others. Using a regular grid, each point in each panel is equally averaged over the other parameters. For this reason, the effect of each parameter is better isolated with regular grids.
+
+As with the regular grid, `show_best()` can report on the numerically best results:
+
+```{r showing the best results}
+
+show_best(mlp_sfd_tune)
+
+```
+
+**Generally, it is a good idea to evaluate the models over multiple metrics so that different aspects of the model fit are taken into account.** Also, it often makes sense to choose a slightly sub-optimal parameter combination that is associated with a simpler model. For this model, simplicity corresponds to larger penalty values and/or fewer hidden units.
+
+As with the results from `fit_resamples()`, there is usually no value in retaining the intermediary model fits across the resamples and tuning parameters. However, as before, the extract option to `control_grid()` allows the retention of the fitted models and/or recipes. Also, setting the `save_pred` option to `TRUE` retains the assessment set predictions and these can be accessed using `collect_predictions()`.
+
+### 13.3 Finalizing the Model
+
+If one of the sets of possible model parameters found via `show_best()` were an attractive final option for these data, we might wish to evaluate how well it does on the test set. However, the results of `tune_grid()` only provide the substrate to choose appropriate tuning parameters. The function *does not fit* a final model.
+
+To fit a final model, a final set of parameter values must be determined. There are two methods to do so:
+
+* manually pick values that appear appropriate or
+* use a `select_*()` function.
+
+For example, `select_best()` will choose the parameters with the numerically best results. Let’s go back to our regular grid results and see which one is best:
+
+```{r Use select_best() to find the best model}
+
+select_best(mlp_reg_tune, metric = "roc_auc")
+
+```
+
+Looking back at Figure 13.3, we can see that a model with a single hidden unit trained for 125 epochs on the original predictors with a large amount of penalization has performance competitive with this option, and is simpler. This is basically penalized logistic regression! To manually specify these parameters, we can create a tibble with these values and then use a *finalization* function to splice the values back into the workflow:
+
+```{r Manually specifiy parameters for the final model}
+
+logistic_param <- 
+  tibble(
+    num_comp = 0,
+    epochs = 125,
+    hidden_units = 1,
+    penalty = 1
+  )
+
+final_mlp_workflow <- 
+  mlp_workflow %>% 
+  finalize_workflow(logistic_param)
+
+final_mlp_workflow
+
+
+```
+
+No more values of `tune()` are included in this finalized workflow. Now the model can be fit to the entire training set:
+
+```{r Fit the model to the entire tuning set}
+
+final_mlp_fit <- 
+  final_mlp_workflow %>% 
+  fit(cells)
+
+final_mlp_fit
+
+```
+
