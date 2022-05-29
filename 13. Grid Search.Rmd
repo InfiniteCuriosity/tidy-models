@@ -365,3 +365,150 @@ final_mlp_fit
 
 ```
 
+This object can now be used to make future predictions on new data.
+
+If you did not use a workflow, finalization of a model and/or recipe is done using `finalize_model()` and `finalize_recipe()`.
+
+### 13.4 Tools for Creating Tuning Specifications
+
+```{r Using **usemodels** to write out the R code for tuning}
+
+library(usemodels)
+
+data(ames)
+ames <- mutate(ames, Sale_Price = log10(Sale_Price))
+
+set.seed(502)
+ames_split <- initial_split(ames, prop = 0.80, strata = Sale_Price)
+ames_train <- training(ames_split)
+ames_test  <-  testing(ames_split)
+
+use_xgboost(Sale_Price ~ Neighborhood + Gr_Liv_Area + Year_Built + Bldg_Type + Latitude + Longitude,
+                       data = ames_train,
+                       # Add comments explaining some of the code:
+                       verbose = TRUE)
+
+```
+
+
+Based on what **usemodels** understands about the data, this code is the minimal preprocessing required. For other models, operations like `step_normalize()` are added to fulfill the basic needs of the model. Notice that it is our responsibility, as the modeling practitioner, to choose what resamples to use for tuning, as well as what kind of grid.
+
+### 13.5 Tools for Efficient Grid Search
+
+It is possible to make grid search more computationally efficient by applying a few different tricks and optimizations. This section describes several techniques.
+
+13.5.1 SUBMODEL OPTIMIZATION
+
+There are types of models where, from a single model fit, multiple tuning parameters can be evaluated without refitting.
+
+For example, partial least squares (PLS) is a supervised version of principal component analysis (Geladi and Kowalski 1986). It creates components that maximize the variation in the predictors (like PCA) but simultaneously tries to maximize the correlation between these predictors and the outcome. We’ll explore PLS more in Chapter 16. One tuning parameter is the number of PLS components to retain. Suppose that a data set with 100 predictors is fit using PLS. The number of possible components to retain can range from one to fifty. However, in many implementations, a single model fit can compute predicted values across many values of `num_comp`. As a result, a PLS model created with 100 components can also make predictions for any `num_comp` <= 100. This saves time since, instead of creating redundant model fits, a single fit can be used to evaluate many submodels.
+
+While not all models can exploit this feature, many broadly used ones do.
+
+* Boosting models can typically make predictions across multiple values for the number of boosting iterations.
+
+* Regularization methods, such as the glmnet model, can make simultaneous predictions across the amount of regularization used to fit the model.
+
+* Multivariate adaptive regression splines (MARS) adds a set of nonlinear features to linear regression models (Friedman 1991). The number of terms to retain is a tuning parameter, and it is computationally fast to make predictions across many values of this parameter from a single model fit.
+
+The **tune** package automatically applies this type of optimization whenever an applicable model is tuned.
+
+For example, if a boosted C5.0 classification model (M. Kuhn and Johnson 2013) was fit to the cell data, we can tune the number of boosting iterations (`trees`). With all other parameters set at their default values, we can evaluate iterations from 1 to 100 on the same resamples as used previously:
+
+```{r C5.0 tune the number of boosted items}
+
+library(C50)
+
+c5_spec <- 
+  boost_tree(trees = tune()) %>% 
+  set_engine("C5.0") %>% 
+  set_mode("classification")
+
+set.seed(1307)
+c5_spec %>% 
+  tune_grid(
+    class ~ .,
+    resamples = cell_folds,
+    grid = data.frame(trees = 1:100),
+    metrics = roc_res
+  )
+
+```
+
+Without the submodel optimization, the call to `tune_grid()` used 62.2 minutes to resample 100 submodels. With the optimization, the same call took 100 seconds (a 37-fold speed-up). The reduced time is the difference in `tune_grid()` fitting 1000 models versus 10 models.
+
+### 13.5.5 Racing Methods
+
+One issue with grid search is that all models need to be fit across all resamples before any tuning parameters can be evaluated. It would be helpful if instead, at some point during tuning, an interim analysis could be conducted to eliminate any truly awful parameter candidates. This would be akin to *futility analysis* in clinical trials. If a new drug is performing excessively poorly (or well), it is potentially unethical to wait until the trial finishes to make a decision.
+
+In machine learning, the set of techniques called *racing methods* provide a similar function (Maron and Moore 1994). Here, the tuning process evaluates all models on an initial subset of resamples. Based on their current performance metrics, some parameter sets are not considered in subsequent resamples.
+
+As an example, in the multilayer perceptron tuning process with a regular grid explored in this chapter, what would the results look like after only the first three folds? Using techniques similar to those shown in Chapter 11, we can fit a model where the outcome is the resampled area under the ROC curve and the predictor is an indicator for the parameter combination. The model takes the resample-to-resample effect into account and produces point and interval estimates for each parameter setting. The results of the model are one-sided 95% confidence intervals that measure the loss of the ROC value relative to the currently best performing parameters.
+
+Any parameter set whose confidence interval includes zero would lack evidence that its performance is not statistically different from the best results. We retain 6 settings; these are resampled more. The remaining 14 submodels are no longer considered.
+
+The **finetune** package contains functions for racing. The tune_race_anova() function conducts an ANOVA model to test for statistical significance of the different model configurations. The syntax to reproduce the filtering shown previously is:
+
+```{r Using finetune, applying an ANOVA model to test for statistical significance of different models}
+
+library(finetune)
+
+set.seed(1308)
+mlp_sfd_race <- 
+  mlp_workflow %>% 
+  tune_race_anova(
+    cell_folds,
+    grid = 20,
+    param_info = mlp_param,
+    metrics = roc_res,
+    control = control_race(verbose_elim = TRUE)
+  )
+
+```
+
+The arguments mirror those of `tune_grid()`. The function control_race() has options for the elimination procedure.
+
+As shown in the animation above, there were two tuning parameter combinations under consideration once the full set of resamples were evaluated. `show_best()` returns the best models (ranked by performance) but returns only the configurations that were never eliminated:
+
+```{r Show best}
+
+show_best(mlp_sfd_race, n= 10)
+
+```
+
+### 13.6 CHAPTER SUMMARY
+
+This chapter discussed the two main classes of grid search (regular and non-regular) that can be used for model tuning and demonstrated how to construct these grids, either manually or using the family of `grid_*()` functions. The `tune_grid()` function can evaluate these candidate sets of model parameters using resampling. The chapter also showed how to finalize a model, recipe, or workflow to update the parameter values for the final fit. Grid search can be computationally expensive, but thoughtful choices in the experimental design of such searches can make them tractable.
+
+The data analysis code that will be reused in the next chapter is:
+
+```{r Analysis used for the next chapter}
+
+library(tidymodels)
+
+data(cells)
+cells <- cells %>% select(-case)
+set.seed(1304)
+cell_folds <- vfold_cv(cells)
+
+roc_res <- metric_set(roc_auc)
+
+```
+
+REFERENCES
+
+Box, GEP, W Hunter, and J Hunter. 2005. Statistics for Experimenters: An Introduction to Design, Data Analysis, and Model Building. Wiley.
+Bradley, R, and M Terry. 1952. “Rank Analysis of Incomplete Block Designs: I. The Method of Paired Comparisons.” Biometrika 39 (3/4): 324–45.
+Friedman, J. 1991. “Multivariate Adaptive Regression Splines.” The Annals of Statistics 19 (1): 1–141.
+Geladi, P., and B Kowalski. 1986. “Partial Least-Squares Regression: A Tutorial.” Analytica Chimica Acta 185: 1–17.
+Hill, A, P LaPan, Y Li, and S Haney. 2007. “Impact of Image Segmentation on High-Content Screening Data Quality for SK-BR-3 Cells.” BMC Bioinformatics 8 (1): 340.
+Joseph, V, E Gul, and S Ba. 2015. “Maximum Projection Designs for Computer Experiments.” Biometrika 102 (2): 371–80.
+Krueger, T, D Panknin, and M Braun. 2015. “Fast Cross-Validation via Sequential Testing.” Journal of Machine Learning Research 16 (33): 1103–55.
+Kuhn, Max. 2014. “Futility Analysis in the Cross-Validation of Machine Learning Models.” https://arxiv.org/abs/1405.6974.
+Kuhn, M, and K Johnson. 2013. Applied Predictive Modeling. Springer.
+Maron, O, and A Moore. 1994. “Hoeffding Races: Accelerating Model Selection Search for Classification and Function Approximation.” In Advances in Neural Information Processing Systems, 59–66.
+McKay, M, R Beckman, and W Conover. 1979. “A Comparison of Three Methods for Selecting Values of Input Variables in the Analysis of Output from a Computer Code.” Technometrics 21 (2): 239–45.
+Santner, T, B Williams, W Notz, and B Williams. 2003. The Design and Analysis of Computer Experiments. Springer.
+Shewry, M, and H Wynn. 1987. “Maximum Entropy Sampling.” Journal of Applied Statistics 14 (2): 165–70.
+Wickham, H. 2019. Advanced r. 2nd ed. Chapman & Hall/CRC the r Series. Taylor & Francis. https://doi.org/10.1201/9781351201315.
+Yeo, I-K, and R Johnson. 2000. “A New Family of Power Transformations to Improve Normality or Symmetry.” Biometrika 87 (4): 954–59.
