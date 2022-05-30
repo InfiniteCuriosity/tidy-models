@@ -1,0 +1,130 @@
+---
+title: "14. Iterative Search"
+author: "Russ Conte"
+date: '2022-05-30'
+output: html_document
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Start by loading the required packages in two lines of code:
+
+```{r Load all required packages in two lines of code}
+
+Packages <- c("tidymodels", "caret", "multilevelmod", "lme4", "VCA", "survival", "patchwork", "splines", "ranger", "ggrepel", "corrr", "tidyposterior", "rstanarm", "nnet", "ggforce")
+lapply(Packages, library, character = TRUE)
+
+tidymodels_prefer(quiet = FALSE)
+
+```
+
+Start with code for multi-core processing
+
+```{r multi-core processing}
+
+library(doParallel)
+cl <- makePSOCKcluster(10)
+registerDoParallel(cl)
+
+```
+
+# 14. Iterative Search
+
+Chapter 13 demonstrated how grid search takes a pre-defined set of candidate values, evaluates them, then chooses the best settings. Iterative search methods pursue a different strategy. During the search process, they predict which values to test next.
+
+When grid search is infeasible or inefficient, iterative methods are a sensible approach for optimizing tuning parameters.
+
+This chapter outlines two search methods. First, we discuss *Bayesian optimization*, which uses a statistical model to predict better parameter settings. After that, the chapter describes a global search method called *simulated annealing*.
+
+We use the same data on cell characteristics as the previous chapter for illustration, but change the model. This chapter uses a support vector machine model because it provides nice two-dimensional visualizations of the search processes.
+
+## 14.1 Support Vector Machine Model
+
+We once again use the cell segmentation data, described in Section 13.2, for modeling, with a support vector machine (SVM) model to demonstrate sequential tuning methods. See M. Kuhn and Johnson (2013) for more information on this model. The two tuning parameters to optimize are the SVM cost value and the radial basis function kernel parameter $\sigms$. Both parameters can have a profound effect on the model complexity and performance.
+
+The SVM model uses a dot product and, for this reason, it is necessary to center and scale the predictors. Like the multilayer perceptron model, this model would benefit from the use of PCA feature extraction. However, we will not use this third tuning parameter in this chapter so that we can visualize the search process in two dimensions.
+
+Along with the previously used objects (shown in 13.6), the tidymodels objects `svm_rec`, `svm_spec`, and `svm_wflow` define the model process:
+
+```{r Define the support vector machines model process}
+
+data(cells)
+cells <- cells %>% select(-case)
+set.seed(1304)
+cell_folds <- vfold_cv(cells)
+roc_res <- metric_set(roc_auc)
+
+svm_rec <- 
+  recipe(class ~ ., data = cells) %>% 
+  step_YeoJohnson(all_numeric_predictors()) %>% 
+  step_normalize(all_numeric_predictors())
+
+svm_spec <- 
+  svm_rbf(cost = tune(), rbf_sigma = tune()) %>% 
+  set_engine("kernlab") %>% 
+  set_mode("classification")
+
+svm_workflow <- 
+  workflow() %>% 
+  add_model(svm_spec) %>% 
+  add_recipe(svm_rec)
+
+```
+
+The default parameter ranges for the two tuning parameters `cost` and `rbf_sigma` are:
+
+```{r The default parameter ranges}
+
+cost()
+# Cost (quantitative)
+# Transformer: log-2 [1e-100, Inf]
+# Range (transformed scale): [-10, 5]
+
+
+rbf_sigma()
+# Radial Basis Function sigma (quantitative)
+# Transformer: log-10 [1e-100, Inf]
+# Range (transformed scale): [-10, 0]
+
+```
+
+For illustration, let's slightly change the kernel parameter range, to improve visualizaitons of the search:
+
+```{r Change the kernel range to improve visualization}
+
+svm_param <- 
+  svm_workflow %>% 
+  extract_parameter_set_dials() %>% 
+  update(rbf_sigma = rbf_sigma(c(-7, -1)))
+
+```
+
+Before discussing specific details about iterative search and how it works, let’s explore the relationship between the two SVM tuning parameters and the area under the ROC curve for this specific data set. We constructed a very large regular grid, composed of 2,500 candidate values, and evaluated the grid using resampling. This is obviously impractical in regular data analysis and tremendously inefficient. However, it elucidates the path that the search process should take and where the numerically optimal value(s) occur.
+
+Figure 14.1 shows the results of evaluating this grid, with lighter color corresponding to higher (better) model performance. There is a large swath in the lower diagonal of the parameter space that is relatively flat with poor performance. A ridge of best performance occurs in the upper-right portion of the space. The black dot indicates the best settings. The transition from the plateau of poor results to the ridge of best performance is very sharp. There is also a sharp drop in the area under the ROC curve just to the right of the ridge.
+
+The following search procedures require at least some resampled performance statistics before proceeding. For this purpose, the following code creates a small regular grid that resides in the flat portion of the parameter space. The `tune_grid()` function resamples this grid:
+
+```{r Create a small regular grid that resides in the flat portion of the parameter space}
+
+set.seed(1401)
+start_grid <- 
+  svm_param %>% 
+  update(
+    cost = cost(c(-6, -4))
+  ) %>% 
+  grid_regular(lewvels = 2)
+
+set.seed(1402)
+svm_initial <- svm_workflow %>% 
+  tune_grid(resamples = cell_folds, grid = start_grid, metrics = roc_res)
+
+collect_metrics(svm_initial)
+
+```
+
+This initial grid shows fairly equivalent results, with no individual point much better than any of the others. These results can be ingested by the iterative tuning functions discussed in the following sections to be used as initial values.
+
